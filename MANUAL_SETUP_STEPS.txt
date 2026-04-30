@@ -1,0 +1,279 @@
+﻿================================================================================
+                    BACKEND INTEGRATION - SETUP STEPS
+================================================================================
+
+IMPORTANT: Complete these steps in order for the frontend to connect to your backend.
+
+================================================================================
+STEP 1: Get Your Backend Laptop IP Address
+================================================================================
+
+On your BACKEND laptop, open terminal/command prompt and run:
+
+WINDOWS:
+  ipconfig
+  
+  Look for this under your network adapter:
+    IPv4 Address . . . . . . . . . . . : 192.168.1.100
+    ↑
+    This is your IP address. Copy it.
+
+LINUX/MAC:
+  ifconfig
+  or
+  hostname -I
+  
+  Result will be something like: 192.168.1.100
+  
+WRITE IT DOWN:
+  My Backend IP: ___________________________
+  
+  (Example format: 192.168.1.100)
+
+================================================================================
+STEP 2: Update .env File (CRITICAL)
+================================================================================
+
+1. Open this file in a text editor:
+   c:\Users\Administrator\Desktop\Assignments\MUTAWASHE\FRONT-END\.env
+
+2. You should see:
+   VITE_API_BASE_URL=http://172.16.10.71:5000
+
+3. Replace <BACKEND_LAPTOP_IP> with your actual IP from Step 1
+
+EXAMPLE:
+   Before: VITE_API_BASE_URL=http://172.16.10.71:5000
+   After:  VITE_API_BASE_URL=http://172.16.10.71:5000
+
+4. Save the file (Ctrl+S)
+
+✓ VERIFIED: File updated? YES / NO
+
+================================================================================
+STEP 3: Verify Backend is Running
+================================================================================
+
+1. On your BACKEND laptop, verify the backend server is running
+
+2. Test connection by opening in browser:
+   http://172.16.10.71:5000/docs
+   (Replace IP with your actual backend IP)
+
+3. Should see API documentation or status page
+
+✓ VERIFIED: Backend responding? YES / NO
+
+================================================================================
+STEP 4: Start Frontend
+================================================================================
+
+1. Open Command Prompt/PowerShell on FRONTEND laptop
+
+2. Navigate to frontend folder:
+   cd c:\Users\Administrator\Desktop\Assignments\MUTAWASHE\FRONT-END
+
+3. Run development server:
+   npm run dev
+   
+   You should see:
+   VITE v5.0.0 running at:
+   ➜  Local:   http://localhost:5173/
+   ➜  press q to quit
+
+4. Open browser and go to: http://localhost:5173
+
+✓ VERIFIED: Frontend started? YES / NO
+
+================================================================================
+STEP 5: Test Login
+================================================================================
+
+1. You should see login page
+
+2. Page footer shows backend URL:
+   "Connected to backend at: http://172.16.10.71:5000"
+
+3. Enter your backend credentials:
+   Email: ___________________________
+   Password: ___________________________
+
+4. Click "Login"
+
+5. Should redirect to dashboard (if login successful)
+
+✓ VERIFIED: Login successful? YES / NO
+
+================================================================================
+STEP 6: Test API Connections
+================================================================================
+
+Once logged in, test these flows:
+
+TEST 1: View Cases
+  - Click "Cases" in navigation
+  - Should show list of cases from backend
+  - Check browser Network tab (F12)
+    Request URL should be: http://172.16.10.71:5000/cases
+
+TEST 2: Create New Case
+  - Click "Create Case"
+  - Fill in form and submit
+  - Should succeed and appear in cases list
+  - Verify no errors in browser console (F12)
+
+TEST 3: Add Evidence to Case
+  - Click a case
+  - Click "Add Evidence"
+  - Fill in form with:
+    * Description
+    * Evidence Type
+    * Source
+    * Collection Date
+    * Collection Location
+  - If file upload, select a file
+    Should compute SHA-256 hash automatically
+  - Submit form
+  - Should add evidence to case
+
+TEST 4: Verify Hash
+  - In case details, click evidence item
+  - Click "Verify Integrity" or "Verify Hash"
+  - Upload same file
+  - Should show hash comparison
+  - If same file: "HASH MATCH - Evidence Integrity Confirmed"
+
+✓ ALL TESTS PASSED? YES / NO
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+ERROR: "Backend unreachable at http://..."
+  Solution:
+    1. Check IP is correct in .env file
+    2. Verify backend is running on backend laptop
+    3. Verify both laptops on same network
+    4. Check firewall allows port 5000
+
+ERROR: "Invalid credentials"
+  Solution:
+    1. Verify credentials exist in backend database
+    2. Check password is exactly correct (case-sensitive)
+    3. Try creating new user in backend
+
+ERROR: "Access Denied / 403"
+  Solution:
+    1. User exists but lacks permissions
+    2. Contact admin to grant permissions
+    3. Check user role in backend
+
+ERROR: "Session expired / 401"
+  Solution:
+    1. Token expired, login again
+    2. Clear browser cache: F12 → Application → Clear All
+    3. Try fresh login
+
+ERROR: CORS Error in console
+  Solution:
+    1. Backend CORS not configured for frontend
+    2. Backend must allow: http://localhost:5173
+    3. Contact backend developer to enable CORS
+
+ERROR: Blank dashboard after login
+  Solution:
+    1. Open F12 (Developer Tools)
+    2. Check Network tab for failed requests
+    3. Check Console tab for errors
+    4. Check if 401/403 errors present
+
+================================================================================
+IMPORTANT NOTES
+================================================================================
+
+⚠️  DO NOT HARDCODE IP IN SOURCE CODE
+    - Always use .env file
+    - .env is in .gitignore (won't be committed)
+    
+✅  .env IS NOT TRACKED BY GIT
+    - Safe to have different IPs for different developers
+    - Each developer updates their own .env
+
+✅  BACKEND URL DISPLAYED ON LOGIN
+    - Footer shows: "Connected to backend at: http://..."
+    - Helps verify correct connection
+    
+✅  ALL REQUESTS INCLUDE JWT TOKEN
+    - Automatically added in Authorization header
+    - Don't need to handle manually
+
+✅  SESSION EXPIRES ON 401
+    - Token cleared from storage
+    - Auto-redirect to login
+    - Normal behavior
+
+================================================================================
+QUICK COMMAND REFERENCE
+================================================================================
+
+Get backend IP:
+  Windows:    ipconfig
+  Linux/Mac:  hostname -I
+
+Start frontend:
+  npm run dev
+
+View logs:
+  F12 → Console tab
+
+Check API requests:
+  F12 → Network tab
+
+Clear browser storage:
+  F12 → Application → Clear All
+
+Restart frontend:
+  Ctrl+C in terminal, then: npm run dev
+
+================================================================================
+SUCCESS CHECKLIST
+================================================================================
+
+✓ Backend IP written down
+✓ .env file updated with correct IP
+✓ Backend verified running
+✓ Frontend started (npm run dev)
+✓ Login successful with backend credentials
+✓ Cases page shows data
+✓ Can create new case
+✓ Can add evidence to case
+✓ Can verify hash integrity
+✓ No errors in console (F12)
+✓ Backend URL shows correct IP in login footer
+
+If all checkmarks above are YES, your frontend is successfully connected to backend!
+
+================================================================================
+SUPPORT
+================================================================================
+
+If issues persist:
+  1. Check BACKEND_INTEGRATION.md for detailed documentation
+  2. Check BACKEND_CONNECTION_CHECKLIST.md for common issues
+  3. Review API docs: http://<BACKEND_IP>:5000/docs
+  4. Check browser console (F12) for specific error messages
+  5. Check backend logs for API errors
+
+================================================================================
+                              READY TO GO!
+================================================================================
+
+Your frontend is now configured and ready to connect to your live backend.
+
+Next: Get your backend IP and complete Step 1-6 above.
+
+Questions? See BACKEND_INTEGRATION.md for detailed information.
+
+================================================================================
+
+
