@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import Layout from '../components/layout/Layout'
 import { useAuthStore } from '../store/authStore'
-import { adminAPI } from '../api/admin'
+import { auditAPI } from '../api/audit'
 import { isAuditor } from '../utils/rbac'
 
 // ─── constants ────────────────────────────────────────────────────────────────
@@ -526,14 +526,14 @@ export default function AuditorPage() {
 
   const { data: statsData, isLoading: statsLoading, error: statsError } = useQuery({
     queryKey: ['auditor-stats'],
-    queryFn:  adminAPI.getAccessLogStats,
+    queryFn:  auditAPI.getStats,
     refetchInterval: 30000,
     retry: 1,
   })
 
   const { data: logData, isLoading: logLoading, isFetching, error: logError } = useQuery({
     queryKey: ['auditor-log', queryParams],
-    queryFn:  () => adminAPI.getAccessLog(queryParams),
+    queryFn:  () => auditAPI.getLogs(queryParams),
     placeholderData: (prev) => prev,
     retry: 1,
   })
@@ -576,7 +576,7 @@ export default function AuditorPage() {
 
   const handlePDF   = () => { exportPDF(sessions, flagged);   setExportOpen(false) }
   const handleExcel = () => { exportExcel(sessions, flagged); setExportOpen(false) }
-  const handleCSV   = () => { adminAPI.exportAccessLog(queryParams); setExportOpen(false) }
+  const handleCSV   = () => { auditAPI.exportLogs(queryParams); setExportOpen(false) }
 
   return (
     <Layout>
