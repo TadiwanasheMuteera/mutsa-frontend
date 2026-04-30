@@ -2,15 +2,25 @@
 import { useAuthStore } from '../store/authStore'
 import { getNavigate } from '../store/navigation'
 
-// VITE_API_URL  — full URL already including /api path, used on Vercel/production
-//   e.g. https://my-backend.up.railway.app/api
-// VITE_API_BASE_URL — legacy variable: server root without /api (appended below)
-//   e.g. http://172.16.14.54:5000
+// VITE_API_URL  — preferred: backend URL with or without trailing /api
+//   e.g. https://web-production-xxx.up.railway.app/api
+//   e.g. https://web-production-xxx.up.railway.app      (also works — /api appended below)
+// VITE_API_BASE_URL — legacy: server root, /api appended automatically
 // In development Vite proxies /api → the backend, so we use a relative base URL.
-const VITE_API_URL      = import.meta.env.VITE_API_URL       // full URL incl. /api
-const VITE_API_BASE_URL = import.meta.env.VITE_API_BASE_URL  // legacy: server root
+const VITE_API_URL      = import.meta.env.VITE_API_URL
+const VITE_API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 
-const CONFIGURED_API_BASE_URL = VITE_API_URL ?? (VITE_API_BASE_URL ? `${VITE_API_BASE_URL}/api` : 'http://localhost:5000/api')
+// Normalise: strip trailing slashes, then ensure the URL always ends with /api.
+// This means both  https://host.railway.app  and  https://host.railway.app/api  work.
+const normaliseUrl = (url) => {
+  if (!url) return null
+  const stripped = url.replace(/\/+$/, '')            // remove trailing slashes
+  return stripped.endsWith('/api') ? stripped : `${stripped}/api`
+}
+
+const CONFIGURED_API_BASE_URL =
+  normaliseUrl(VITE_API_URL) ??
+  (VITE_API_BASE_URL ? `${VITE_API_BASE_URL.replace(/\/+$/, '')}/api` : 'http://localhost:5000/api')
 
 // Dev: empty string so Vite proxy handles /api/* without CORS issues.
 // Prod (Vercel): use the configured backend URL directly.
