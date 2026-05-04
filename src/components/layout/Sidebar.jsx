@@ -26,11 +26,10 @@ const ADMIN_MENU = [
 
 // Nav items for INVESTIGATOR — case creation and evidence
 const INVESTIGATOR_MENU = [
-  { path: '/investigator',   icon: LayoutDashboard, label: 'Dashboard'       },
-  { path: '/cases',          icon: FileText,         label: 'My Cases'        },
-  { path: '/cases/new',      icon: FileText,         label: 'New Case'        },
-  { path: '/evidence',       icon: Package,          label: 'Evidence'        },
-  { path: '/custody',        icon: Link2,            label: 'Custody Records' },
+  { path: '/investigator',   icon: LayoutDashboard, label: 'Dashboard'        },
+  { path: '/cases',          icon: FileText,         label: 'My Cases'         },
+  { path: '/cases/new',      icon: FileText,         label: 'New Case'         },
+  { path: '/custody',        icon: Link2,            label: 'Custody Records'  },
   { path: '/verify',         icon: Search,           label: 'Hash Verification'},
 ]
 
@@ -39,11 +38,11 @@ const AUTHORIZER_MENU = [
   { path: '/authorizer',     icon: LayoutDashboard, label: 'Dashboard'        },
   { path: '/cases',          icon: CheckSquare,      label: 'Pending Approvals'},
   { path: '/custody',        icon: Link2,            label: 'Custody Records'  },
+  { path: '/verify',         icon: Search,           label: 'Hash Verification'},
 ]
 
 // Nav items for AUDITOR — read-only audit access only
 const AUDITOR_MENU = [
-  { path: '/dashboard',   icon: LayoutDashboard, label: 'Dashboard'       },
   { path: '/audit',       icon: ClipboardList,   label: 'Audit Monitor'   },
   { path: '/custody',     icon: Link2,           label: 'Chain of Custody'},
   { path: '/verify',      icon: Search,          label: 'Hash Verification'},

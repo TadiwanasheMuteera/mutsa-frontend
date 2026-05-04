@@ -1,115 +1,80 @@
-// Mock Authentication for Frontend Development
-// Remove this file when backend is ready
+// Demo credentials — one account per role for prototype testing
 
-const DEMO_USERS = {
-  'demo@example.com': {
-    password: 'demo123',
-    token: 'demo_token_' + Math.random().toString(36).substring(7),
-    user: {
-      id: 'user-1',
-      name: 'Auditor User',
-      email: 'demo@example.com',
-      role: 'auditor',
-    },
+export const DEMO_USERS = {
+  admin: {
+    password: 'admin',
+    accessToken:  'demo_access_admin',
+    refreshToken: 'demo_refresh_admin',
+    user: { id: 'u-1', full_name: 'Admin User',      email: 'admin@coc.gov',       role: 'ADMIN'        },
   },
-  'admin@example.com': {
-    password: 'admin123',
-    token: 'admin_token_' + Math.random().toString(36).substring(7),
-    user: {
-      id: 'user-2',
-      name: 'Admin User',
-      email: 'admin@example.com',
-      role: 'admin',
-    },
+  investigator: {
+    password: 'investigator',
+    accessToken:  'demo_access_inv',
+    refreshToken: 'demo_refresh_inv',
+    user: { id: 'u-2', full_name: 'John Investigator', email: 'inv@coc.gov',        role: 'INVESTIGATOR' },
   },
-  'auditor@example.com': {
-    password: 'auditor123',
-    token: 'auditor_token_' + Math.random().toString(36).substring(7),
-    user: {
-      id: 'user-3',
-      name: 'Auditor Smith',
-      email: 'auditor@example.com',
-      role: 'auditor',
-    },
+  authorizer: {
+    password: 'authorizer',
+    accessToken:  'demo_access_auth',
+    refreshToken: 'demo_refresh_auth',
+    user: { id: 'u-3', full_name: 'Sarah Authorizer',  email: 'auth@coc.gov',       role: 'AUTHORIZER'   },
   },
+  auditor: {
+    password: 'auditor',
+    accessToken:  'demo_access_aud',
+    refreshToken: 'demo_refresh_aud',
+    user: { id: 'u-4', full_name: 'Mike Auditor',      email: 'auditor@coc.gov',    role: 'AUDITOR'      },
+  },
+  // also support email-based login for backward compat
+  'admin@coc.gov':       { password: 'admin',        accessToken: 'demo_access_admin', refreshToken: 'demo_refresh_admin', user: { id: 'u-1', full_name: 'Admin User',        email: 'admin@coc.gov',    role: 'ADMIN'        } },
+  'inv@coc.gov':         { password: 'investigator', accessToken: 'demo_access_inv',   refreshToken: 'demo_refresh_inv',   user: { id: 'u-2', full_name: 'John Investigator', email: 'inv@coc.gov',      role: 'INVESTIGATOR' } },
+  'auth@coc.gov':        { password: 'authorizer',   accessToken: 'demo_access_auth',  refreshToken: 'demo_refresh_auth',  user: { id: 'u-3', full_name: 'Sarah Authorizer',  email: 'auth@coc.gov',     role: 'AUTHORIZER'   } },
+  'auditor@coc.gov':     { password: 'auditor',      accessToken: 'demo_access_aud',   refreshToken: 'demo_refresh_aud',   user: { id: 'u-4', full_name: 'Mike Auditor',      email: 'auditor@coc.gov',  role: 'AUDITOR'      } },
 }
 
-export const mockAuthAPI = {
-  login: async (email, password) => {
-    // Simulate network delay
-    await new Promise((resolve) => setTimeout(resolve, 800))
-
-    const user = DEMO_USERS[email]
-    if (!user || user.password !== password) {
-      throw new Error('Invalid email or password')
-    }
-
-    return {
-      token: user.token,
-      user: user.user,
-      message: 'Login successful (demo mode)',
-    }
+export const ROLE_CARDS = [
+  {
+    role:     'ADMIN',
+    label:    'Administrator',
+    username: 'admin',
+    password: 'admin',
+    color:    'purple',
+    bg:       'bg-purple-50 border-purple-200 hover:border-purple-400',
+    badge:    'bg-purple-100 text-purple-800',
+    desc:     'Full system access. Creates users, views all cases, manages evidence, and monitors access logs.',
+    can:      ['Create & manage users', 'View all cases & evidence', 'Access audit logs', 'Full admin controls'],
   },
-
-  register: async (email, password, name) => {
-    await new Promise((resolve) => setTimeout(resolve, 800))
-
-    if (DEMO_USERS[email]) {
-      throw new Error('Email already registered')
-    }
-
-    const newToken = 'token_' + Math.random().toString(36).substring(7)
-    const newUser = {
-      id: 'user-' + Object.keys(DEMO_USERS).length + 1,
-      name,
-      email,
-      role: 'auditor',
-    }
-
-    DEMO_USERS[email] = {
-      password,
-      token: newToken,
-      user: newUser,
-    }
-
-    return {
-      token: newToken,
-      user: newUser,
-      message: 'Registration successful (demo mode)',
-    }
+  {
+    role:     'INVESTIGATOR',
+    label:    'Investigator',
+    username: 'investigator',
+    password: 'investigator',
+    color:    'blue',
+    bg:       'bg-blue-50 border-blue-200 hover:border-blue-400',
+    badge:    'bg-blue-100 text-blue-800',
+    desc:     'Creates cases and manages evidence. Cases go to PENDING until an Authorizer approves them.',
+    can:      ['Create new cases', 'Upload & manage evidence', 'Transfer evidence custody', 'View own cases'],
   },
-
-  logout: async () => {
-    await new Promise((resolve) => setTimeout(resolve, 300))
-    return { message: 'Logged out successfully (demo mode)' }
+  {
+    role:     'AUTHORIZER',
+    label:    'Authorizer',
+    username: 'authorizer',
+    password: 'authorizer',
+    color:    'amber',
+    bg:       'bg-amber-50 border-amber-200 hover:border-amber-400',
+    badge:    'bg-amber-100 text-amber-800',
+    desc:     'Reviews and approves or rejects cases submitted by investigators before they become active.',
+    can:      ['Review pending cases', 'Approve cases → OPEN', 'Reject cases with reason', 'View all cases'],
   },
-
-  getCurrentUser: async () => {
-    await new Promise((resolve) => setTimeout(resolve, 300))
-    const token = localStorage.getItem('auth-storage')
-    if (!token) throw new Error('Not authenticated')
-    
-    // Parse auth storage (Zustand persist)
-    try {
-      const authData = JSON.parse(token)
-      return authData.state?.user || null
-    } catch {
-      throw new Error('Invalid token')
-    }
+  {
+    role:     'AUDITOR',
+    label:    'Auditor',
+    username: 'auditor',
+    password: 'auditor',
+    color:    'green',
+    bg:       'bg-green-50 border-green-200 hover:border-green-400',
+    badge:    'bg-green-100 text-green-800',
+    desc:     'Read-only access to system activity. Monitors who logged in, what they did, and when they logged out.',
+    can:      ['Full session audit trail', 'Login-to-logout timeline', 'Flag suspicious activity', 'Download audit reports'],
   },
-
-  refreshToken: async () => {
-    await new Promise((resolve) => setTimeout(resolve, 300))
-    const newToken = 'token_' + Math.random().toString(36).substring(7)
-    return {
-      token: newToken,
-      message: 'Token refreshed (demo mode)',
-    }
-  },
-}
-
-export const DEMO_CREDENTIALS = [
-  { email: 'admin@example.com', password: 'admin123', role: 'Admin' },
-  { email: 'auditor@example.com', password: 'auditor123', role: 'Auditor' },
-  { email: 'demo@example.com', password: 'demo123', role: 'Auditor' },
 ]
