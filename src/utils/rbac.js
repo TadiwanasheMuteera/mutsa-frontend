@@ -1,17 +1,15 @@
 export const ROLES = {
-  ADMIN: 'ADMIN',
-  AUDITOR: 'AUDITOR',
+  ADMIN:        'ADMIN',
+  AUDITOR:      'AUDITOR',
+  INVESTIGATOR: 'INVESTIGATOR',
+  AUTHORIZER:   'AUTHORIZER',
 }
 
 export function normalizeRole(role) {
   if (!role || typeof role !== 'string') return null
   const normalized = role.trim().toUpperCase()
-
-  // Backward-compatibility mapping while backend transitions to AUDITOR.
-  if (normalized === 'INVESTIGATOR' || normalized === 'SUPERVISOR') {
-    return ROLES.AUDITOR
-  }
-
+  // Legacy mapping: SUPERVISOR → AUDITOR
+  if (normalized === 'SUPERVISOR') return ROLES.AUDITOR
   return normalized
 }
 
@@ -21,14 +19,10 @@ export function hasRole(user, allowedRoles = []) {
   return allowedRoles.map(normalizeRole).includes(userRole)
 }
 
-export function isAdmin(user) {
-  return hasRole(user, [ROLES.ADMIN])
-}
+export const isAdmin        = (user) => hasRole(user, [ROLES.ADMIN])
+export const isAuditor      = (user) => hasRole(user, [ROLES.AUDITOR])
+export const isInvestigator = (user) => hasRole(user, [ROLES.INVESTIGATOR])
+export const isAuthorizer   = (user) => hasRole(user, [ROLES.AUTHORIZER])
 
-export function isAuditor(user) {
-  return hasRole(user, [ROLES.AUDITOR])
-}
-
-export function canAuditLogs(user) {
-  return hasRole(user, [ROLES.ADMIN, ROLES.AUDITOR])
-}
+export const canAuditLogs   = (user) => hasRole(user, [ROLES.ADMIN, ROLES.AUDITOR])
+export const canManageCases = (user) => hasRole(user, [ROLES.ADMIN, ROLES.INVESTIGATOR, ROLES.AUTHORIZER])

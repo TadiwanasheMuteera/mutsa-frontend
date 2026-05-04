@@ -4,21 +4,24 @@ import { useAuthStore } from './store/authStore'
 import { useAuthInit } from './store/useAuthInit'
 import { useEffect } from 'react'
 import { setNavigate } from './store/navigation'
-import { hasRole, isAdmin, isAuditor } from './utils/rbac'
+import { hasRole, isAdmin, isAuditor, isInvestigator, isAuthorizer } from './utils/rbac'
 
 // Pages
-import LoginPage         from './pages/LoginPage'
-import DashboardPage     from './pages/DashboardPage'
-import CasesPage         from './pages/CasesPage'
-import CaseDetailPage    from './pages/CaseDetailPage'
-import NewCasePage       from './pages/NewCasePage'
-import EvidencePage      from './pages/EvidencePage'
+import LoginPage          from './pages/LoginPage'
+import DashboardPage      from './pages/DashboardPage'
+import CasesPage          from './pages/CasesPage'
+import CaseDetailPage     from './pages/CaseDetailPage'
+import NewCasePage        from './pages/NewCasePage'
+import EvidencePage       from './pages/EvidencePage'
 import EvidenceDetailPage from './pages/EvidenceDetailPage'
-import NewEvidencePage   from './pages/NewEvidencePage'
-import CustodyPage       from './pages/CustodyPage'
-import HashVerifyPage    from './pages/HashVerifyPage'
+import NewEvidencePage    from './pages/NewEvidencePage'
+import CustodyPage        from './pages/CustodyPage'
+import HashVerifyPage     from './pages/HashVerifyPage'
 import AdminAccessLogPage from './pages/AdminAccessLogPage'
-import AuditorPage       from './pages/AuditorPage'
+import AuditorPage        from './pages/AuditorPage'
+import CreateUserPage     from './pages/CreateUserPage'
+import AuthorizerPage     from './pages/AuthorizerPage'
+import InvestigatorPage   from './pages/InvestigatorPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -50,9 +53,10 @@ function ProtectedRoute({ children, allowedRoles }) {
   }
 
   if (Array.isArray(allowedRoles) && allowedRoles.length > 0 && !hasRole(user, allowedRoles)) {
-    // Redirect each role to their own home rather than a blank dashboard
-    if (isAdmin(user))   return <Navigate to="/dashboard"  replace />
-    if (isAuditor(user)) return <Navigate to="/audit"      replace />
+    if (isAdmin(user))        return <Navigate to="/dashboard"   replace />
+    if (isAuditor(user))      return <Navigate to="/audit"       replace />
+    if (isInvestigator(user)) return <Navigate to="/investigator" replace />
+    if (isAuthorizer(user))   return <Navigate to="/authorizer"  replace />
     return <Navigate to="/login" replace />
   }
 
@@ -62,9 +66,11 @@ function ProtectedRoute({ children, allowedRoles }) {
 // Redirects / and * to the correct landing page for the current role
 function RoleHome() {
   const { isAuthenticated, user } = useAuthStore()
-  if (!isAuthenticated) return <Navigate to="/login" replace />
-  if (isAuditor(user))  return <Navigate to="/audit"     replace />
-  return                       <Navigate to="/dashboard" replace />
+  if (!isAuthenticated)     return <Navigate to="/login"        replace />
+  if (isAuditor(user))      return <Navigate to="/audit"        replace />
+  if (isInvestigator(user)) return <Navigate to="/investigator" replace />
+  if (isAuthorizer(user))   return <Navigate to="/authorizer"   replace />
+  return                           <Navigate to="/dashboard"    replace />
 }
 
 function AppContent() {
@@ -90,30 +96,6 @@ function AppContent() {
         element={
           <ProtectedRoute allowedRoles={['ADMIN']}>
             <DashboardPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/cases"
-        element={
-          <ProtectedRoute allowedRoles={['ADMIN']}>
-            <CasesPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/cases/new"
-        element={
-          <ProtectedRoute allowedRoles={['ADMIN']}>
-            <NewCasePage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/cases/:caseId"
-        element={
-          <ProtectedRoute allowedRoles={['ADMIN']}>
-            <CaseDetailPage />
           </ProtectedRoute>
         }
       />
@@ -150,12 +132,66 @@ function AppContent() {
         }
       />
 
+      {/* ── ADMIN — user management ──────────────────────────────── */}
+      <Route
+        path="/users/new"
+        element={
+          <ProtectedRoute allowedRoles={['ADMIN']}>
+            <CreateUserPage />
+          </ProtectedRoute>
+        }
+      />
+
       {/* ── AUDITOR-only routes ───────────────────────────────────── */}
       <Route
         path="/audit"
         element={
           <ProtectedRoute allowedRoles={['AUDITOR']}>
             <AuditorPage />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ── INVESTIGATOR routes ───────────────────────────────────── */}
+      <Route
+        path="/investigator"
+        element={
+          <ProtectedRoute allowedRoles={['INVESTIGATOR']}>
+            <InvestigatorPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/cases"
+        element={
+          <ProtectedRoute allowedRoles={['ADMIN','INVESTIGATOR','AUTHORIZER']}>
+            <CasesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/cases/new"
+        element={
+          <ProtectedRoute allowedRoles={['ADMIN','INVESTIGATOR']}>
+            <NewCasePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/cases/:caseId"
+        element={
+          <ProtectedRoute allowedRoles={['ADMIN','INVESTIGATOR','AUTHORIZER']}>
+            <CaseDetailPage />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ── AUTHORIZER routes ─────────────────────────────────────── */}
+      <Route
+        path="/authorizer"
+        element={
+          <ProtectedRoute allowedRoles={['AUTHORIZER']}>
+            <AuthorizerPage />
           </ProtectedRoute>
         }
       />
