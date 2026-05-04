@@ -10,8 +10,14 @@ import { isAuthorizer } from '../utils/rbac'
 import { Navigate } from 'react-router-dom'
 import {
   CheckCircle2, XCircle, AlertCircle, ClipboardList,
-  Clock, ChevronDown, ChevronUp,
+  Clock, ChevronDown, ChevronUp, WifiOff,
 } from 'lucide-react'
+
+const MOCK_PENDING = [
+  { id: 'p1', case_number: 'COC-2026-003', title: 'SIM Swap Fraud Investigation', status: 'PENDING_APPROVAL', fraud_type: 'SIM_SWAP',      description: 'Suspect allegedly swapped SIM cards to gain access to victim bank accounts.', created_at: new Date().toISOString() },
+  { id: 'p2', case_number: 'COC-2026-007', title: 'Business Email Compromise',     status: 'PENDING_APPROVAL', fraud_type: 'BEC',           description: 'Company CFO email was spoofed to authorise fraudulent wire transfers.', created_at: new Date().toISOString() },
+  { id: 'p3', case_number: 'COC-2026-009', title: 'Insider Trading Evidence',      status: 'PENDING_APPROVAL', fraud_type: 'INSIDER_FRAUD', description: 'Employee leaked confidential merger data to external investors.', created_at: new Date().toISOString() },
+]
 
 // Inline approve/reject action panel
 function ActionPanel({ caseItem, onApprove, onReject, isPending }) {
@@ -121,8 +127,12 @@ export default function AuthorizerPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['pending-cases'],
     queryFn:  async () => {
-      const result = await casesAPI.getCases({ status: 'PENDING_APPROVAL' })
-      return result.cases || result.data || (Array.isArray(result) ? result : [])
+      try {
+        const result = await casesAPI.getCases({ status: 'PENDING_APPROVAL' })
+        return result.cases || result.data || (Array.isArray(result) ? result : [])
+      } catch {
+        return MOCK_PENDING
+      }
     },
     refetchOnMount: true,
     refetchInterval: 30000,
@@ -131,6 +141,7 @@ export default function AuthorizerPage() {
 
   if (!isAuthorizer(user)) return <Navigate to="/home" replace />
 
+  const usingMock = data?.length > 0 && data[0]?.id === 'p1'
   // Backend may already filter by status=PENDING_APPROVAL; keep client-side filter as safety net
   const allCases = data || []
   const pending = allCases.filter((c) =>
@@ -153,7 +164,7 @@ export default function AuthorizerPage() {
     <Layout>
       <div>
         {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
+        <div className="flex items-center gap-3 mb-4">
           <div className="bg-amber-100 p-2.5 rounded-xl">
             <ClipboardList size={22} className="text-amber-700" />
           </div>
@@ -162,6 +173,12 @@ export default function AuthorizerPage() {
             <p className="text-sm text-gray-500">Review and approve or reject submitted cases</p>
           </div>
         </div>
+
+        {usingMock && (
+          <div className="mb-4 flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-2.5 rounded-xl text-sm">
+            <WifiOff size={14} /> <strong>Demo mode</strong> — sample pending cases shown. Connect backend for live data.
+          </div>
+        )}
 
         {/* Stats strip */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">

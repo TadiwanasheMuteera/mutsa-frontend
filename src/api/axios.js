@@ -49,6 +49,11 @@ const processQueue = (error, token = null) => {
   failedQueue = []
 }
 
+// Demo tokens are issued by the local mock-auth and will always be rejected
+// by the real backend. Detect them so we can skip the refresh/logout cycle.
+const isDemoToken = (token) =>
+  typeof token === 'string' && token.startsWith('demo_')
+
 // Request interceptor to add JWT token
 axiosInstance.interceptors.request.use(
   (config) => {
@@ -99,6 +104,19 @@ axiosInstance.interceptors.response.use(
 
     // Handle 401 on protected endpoints — Try to refresh token once
     if (error.response?.status === 401 && !originalRequest._retry) {
+      const currentToken = useAuthStore.getState().accessToken
+
+      // Demo tokens will always be rejected by a real backend.
+      // Never attempt a refresh or force a logout — just let the
+      // calling page show its empty/mock state.
+      if (isDemoToken(currentToken)) {
+        return Promise.reject({
+          message: 'Demo mode: live backend not connected.',
+          status: 401,
+          isDemo: true,
+        })
+      }
+
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject })
@@ -115,7 +133,7 @@ axiosInstance.interceptors.response.use(
 
       const refreshToken = useAuthStore.getState().refreshToken
       
-      if (refreshToken) {
+      if (refreshToken && !isDemoToken(refreshToken)) {
         return axiosInstance
           .post('/auth/refresh', { refresh_token: refreshToken })
           .then(res => {
@@ -129,7 +147,6 @@ axiosInstance.interceptors.response.use(
           })
           .catch(err => {
             processQueue(err, null)
-            // Clear all auth data since refresh failed
             console.log('Token refresh failed, logging out')
             useAuthStore.getState().logout()
             const nav = getNavigate()
@@ -141,7 +158,7 @@ axiosInstance.interceptors.response.use(
             return Promise.reject(err)
           })
       } else {
-        // No refresh token, clear auth and redirect to login
+        // No real refresh token — clear auth and redirect to login
         console.log('No refresh token available, logging out')
         useAuthStore.getState().logout()
         const nav = getNavigate()

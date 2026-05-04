@@ -3,12 +3,10 @@ import { useQuery } from '@tanstack/react-query'
 import { formatDistanceToNow, format } from 'date-fns'
 import Layout from '../components/layout/Layout'
 import StatCard from '../components/ui/StatCard'
-import Spinner from '../components/ui/Spinner'
 import { useAuthStore } from '../store/authStore'
 import { ROLES, normalizeRole } from '../utils/rbac'
 import { casesAPI } from '../api/cases'
 import { evidenceAPI } from '../api/evidence'
-import { custodyAPI } from '../api/custody'
 import {
   FileText,
   Package,
@@ -17,7 +15,16 @@ import {
   CheckCircle2,
   AlertTriangle,
   ArrowRight,
+  WifiOff,
 } from 'lucide-react'
+
+// ── Demo / mock data shown when backend is unavailable ───────────────────────
+const MOCK_CASES = [
+  { id: 'c1', case_number: 'COC-2026-001', title: 'SIM Swap Fraud',          fraud_type: 'SIM_SWAP',        status: 'OPEN',             evidenceCount: 3, assigned_to: null, updated_at: new Date().toISOString() },
+  { id: 'c2', case_number: 'COC-2026-002', title: 'Business Email Compromise',fraud_type: 'BEC',             status: 'UNDER_INVESTIGATION',evidenceCount: 7, assigned_to: null, updated_at: new Date().toISOString() },
+  { id: 'c3', case_number: 'COC-2026-003', title: 'Insider Trading Evidence', fraud_type: 'INSIDER_FRAUD',   status: 'PENDING_APPROVAL', evidenceCount: 2, assigned_to: null, updated_at: new Date().toISOString() },
+  { id: 'c4', case_number: 'COC-2026-004', title: 'Phishing Campaign',        fraud_type: 'PHISHING',        status: 'CLOSED',           evidenceCount: 5, assigned_to: null, updated_at: new Date().toISOString() },
+]
 
 // Loading skeleton component
 function SkeletonCard() {
@@ -104,59 +111,40 @@ export default function DashboardPage() {
     queryFn: async () => {
       try {
         const result = await casesAPI.getCases()
-        console.log('Dashboard: Fetched cases from API:', result)
-        return result.cases || []
+        return result.cases || result.data || (Array.isArray(result) ? result : [])
       } catch (err) {
-        console.error('Dashboard: Error fetching cases:', err)
-        throw err
+        // Return mock data on any error (demo token, backend down, 500, etc.)
+        console.warn('Dashboard: API unavailable, using demo data:', err?.message)
+        return MOCK_CASES
       }
     },
     refetchOnMount: 'stale',
-    staleTime: 0,
-    gcTime: 0,
+    staleTime: 30_000,
+    retry: 1,
   })
 
-  console.log('Dashboard rendered with cases:', cases)
+  const usingMockData = cases === MOCK_CASES || cases.some((c) => c.id === 'c1')
 
-  // Fetch enriched case data with evidence counts
-  const { data: enrichedCases = [], isLoading: enrichedLoading } = useQuery({
+  // Enrich cases with evidence counts — silently skip if backend unavailable
+  const { data: enrichedCases = [] } = useQuery({
     queryKey: ['dashboard-enriched-cases', cases.length],
     queryFn: async () => {
       if (!cases || cases.length === 0) return []
-      console.log('Dashboard: Enriching cases with evidence counts')
-      
-      try {
-        const enriched = await Promise.all(
-          cases.map(async (caseItem) => {
-            try {
-              const evidenceResult = await evidenceAPI.getEvidenceByCaseId(caseItem.id)
-              const evidenceList = Array.isArray(evidenceResult) ? evidenceResult : []
-              return {
-                ...caseItem,
-                evidenceCount: evidenceList.length,
-                evidence: evidenceList,
-              }
-            } catch (err) {
-              console.warn(`Dashboard: Error fetching evidence for case ${caseItem.id}:`, err?.message)
-              return {
-                ...caseItem,
-                evidenceCount: 0,
-                evidence: [],
-              }
-            }
-          })
-        )
-        
-        console.log('Dashboard: Enriched cases:', enriched)
-        return enriched
-      } catch (err) {
-        console.error('Dashboard: Error enriching cases:', err)
-        return cases
-      }
+      const enriched = await Promise.all(
+        cases.map(async (caseItem) => {
+          try {
+            const evidenceResult = await evidenceAPI.getEvidenceByCaseId(caseItem.id)
+            const evidenceList = Array.isArray(evidenceResult) ? evidenceResult : []
+            return { ...caseItem, evidenceCount: evidenceList.length, evidence: evidenceList }
+          } catch {
+            return { ...caseItem, evidenceCount: caseItem.evidenceCount || 0, evidence: [] }
+          }
+        })
+      )
+      return enriched
     },
-    enabled: cases.length > 0,
-    staleTime: 0,
-    gcTime: 0,
+    enabled: cases.length > 0 && !usingMockData,
+    staleTime: 30_000,
   })
 
   if (casesLoading) {
@@ -198,22 +186,6 @@ export default function DashboardPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
-          </div>
-        </div>
-      </Layout>
-    )
-  }
-
-  if (casesError) {
-    return (
-      <Layout>
-        <div>
-          <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg flex items-center gap-3">
-            <AlertCircle size={24} />
-            <div>
-              <h3 className="font-semibold">Error loading dashboard</h3>
-              <p className="text-sm">{casesError.message}</p>
             </div>
           </div>
         </div>
@@ -310,6 +282,19 @@ export default function DashboardPage() {
           <h1 className="text-3xl font-bold text-primary">Dashboard</h1>
           <p className="text-gray-600 text-sm mt-1">Welcome back! Here's your forensic evidence overview.</p>
         </div>
+
+        {/* Demo / offline banner */}
+        {(usingMockData || casesError) && (
+          <div className="mb-4 flex items-center gap-3 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl text-sm">
+            <WifiOff size={16} className="flex-shrink-0" />
+            <span>
+              <strong>Demo mode</strong> — backend not connected. Showing sample data.
+              {casesError && !casesError?.isDemo && (
+                <span className="ml-1 text-xs text-amber-600">({casesError.message})</span>
+              )}
+            </span>
+          </div>
+        )}
 
         <div className={`mb-6 rounded-xl border px-4 py-3 ${roleConfig.tone}`}>
           <p className="font-semibold text-sm">{roleConfig.title}</p>

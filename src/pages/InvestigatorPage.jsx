@@ -8,8 +8,15 @@ import { casesAPI } from '../api/cases'
 import { useAuthStore } from '../store/authStore'
 import { isInvestigator } from '../utils/rbac'
 import {
-  Plus, FileText, Clock, CheckCircle2, XCircle, FolderOpen,
+  Plus, FileText, Clock, CheckCircle2, FolderOpen, WifiOff,
 } from 'lucide-react'
+
+const MOCK_INV_CASES = [
+  { id: 'm1', case_number: 'COC-2026-001', title: 'SIM Swap Investigation',    status: 'PENDING_APPROVAL',    fraud_type: 'SIM_SWAP' },
+  { id: 'm2', case_number: 'COC-2026-002', title: 'BEC Attack Case',           status: 'OPEN',                fraud_type: 'BEC' },
+  { id: 'm3', case_number: 'COC-2026-003', title: 'Insider Fraud Evidence',    status: 'UNDER_INVESTIGATION', fraud_type: 'INSIDER_FRAUD' },
+  { id: 'm4', case_number: 'COC-2026-004', title: 'Phishing Campaign Probe',   status: 'CLOSED',              fraud_type: 'PHISHING' },
+]
 
 export default function InvestigatorPage() {
   const navigate = useNavigate()
@@ -19,8 +26,12 @@ export default function InvestigatorPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['my-cases', user?.id],
     queryFn: async () => {
-      const result = await casesAPI.getCases()
-      return result.cases || result.data || (Array.isArray(result) ? result : [])
+      try {
+        const result = await casesAPI.getCases()
+        return result.cases || result.data || (Array.isArray(result) ? result : [])
+      } catch {
+        return MOCK_INV_CASES
+      }
     },
     refetchOnMount: true,
     enabled: isInvestigator(user),
@@ -28,7 +39,8 @@ export default function InvestigatorPage() {
 
   if (!isInvestigator(user)) return <Navigate to="/home" replace />
 
-  const cases   = data || []
+  const cases       = data || []
+  const usingMock   = cases.length > 0 && cases[0]?.id === 'm1'
   const pending = cases.filter((c) => ['PENDING_APPROVAL','PENDING','AWAITING_APPROVAL'].includes((c.status||'').toUpperCase()))
   const open    = cases.filter((c) => ['OPEN','ACTIVE','UNDER_INVESTIGATION'].includes((c.status||'').toUpperCase()))
   const closed  = cases.filter((c) => ['CLOSED','RESOLVED','REJECTED'].includes((c.status||'').toUpperCase()))
@@ -45,6 +57,12 @@ export default function InvestigatorPage() {
             Investigator Dashboard — manage your cases and evidence
           </p>
         </div>
+
+        {usingMock && (
+          <div className="mb-4 flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-2.5 rounded-xl text-sm">
+            <WifiOff size={14} /> <strong>Demo mode</strong> — sample cases shown. Connect backend to see real data.
+          </div>
+        )}
 
         {/* Stat cards */}
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
