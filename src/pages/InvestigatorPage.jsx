@@ -15,16 +15,18 @@ export default function InvestigatorPage() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
 
-  if (!isInvestigator(user)) return <Navigate to="/dashboard" replace />
-
+  // ── hooks must come before any conditional return ──
   const { data, isLoading } = useQuery({
-    queryKey: ['cases'],
+    queryKey: ['my-cases', user?.id],
     queryFn: async () => {
       const result = await casesAPI.getCases()
-      return result.cases || []
+      return result.cases || result.data || (Array.isArray(result) ? result : [])
     },
     refetchOnMount: true,
+    enabled: isInvestigator(user),
   })
+
+  if (!isInvestigator(user)) return <Navigate to="/home" replace />
 
   const cases   = data || []
   const pending = cases.filter((c) => ['PENDING_APPROVAL','PENDING','AWAITING_APPROVAL'].includes((c.status||'').toUpperCase()))

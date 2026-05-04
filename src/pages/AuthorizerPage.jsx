@@ -117,19 +117,23 @@ export default function AuthorizerPage() {
   const navigate    = useNavigate()
   const queryClient = useQueryClient()
 
-  if (!isAuthorizer(user)) return <Navigate to="/dashboard" replace />
-
+  // ── hooks must come before any conditional return ──
   const { data, isLoading, error } = useQuery({
-    queryKey: ['cases'],
+    queryKey: ['pending-cases'],
     queryFn:  async () => {
-      const result = await casesAPI.getCases()
-      return result.cases || []
+      const result = await casesAPI.getCases({ status: 'PENDING_APPROVAL' })
+      return result.cases || result.data || (Array.isArray(result) ? result : [])
     },
     refetchOnMount: true,
     refetchInterval: 30000,
+    enabled: isAuthorizer(user),
   })
 
-  const pending = (data || []).filter((c) =>
+  if (!isAuthorizer(user)) return <Navigate to="/home" replace />
+
+  // Backend may already filter by status=PENDING_APPROVAL; keep client-side filter as safety net
+  const allCases = data || []
+  const pending = allCases.filter((c) =>
     ['PENDING_APPROVAL', 'PENDING', 'AWAITING_APPROVAL'].includes((c.status || '').toUpperCase())
   )
 
@@ -167,12 +171,12 @@ export default function AuthorizerPage() {
           </div>
           <div className="bg-white rounded-xl border border-green-100 p-4">
             <p className="text-xs text-green-600 font-semibold uppercase tracking-wider mb-1">Total Cases</p>
-            <p className="text-3xl font-bold text-green-700">{(data || []).length}</p>
+            <p className="text-3xl font-bold text-green-700">{allCases.length}</p>
           </div>
           <div className="bg-white rounded-xl border border-blue-100 p-4 hidden sm:block">
             <p className="text-xs text-blue-600 font-semibold uppercase tracking-wider mb-1">Approved / Active</p>
             <p className="text-3xl font-bold text-blue-700">
-              {(data || []).filter((c) => ['OPEN','ACTIVE','UNDER_INVESTIGATION'].includes((c.status||'').toUpperCase())).length}
+              {allCases.filter((c) => ['OPEN','ACTIVE','UNDER_INVESTIGATION'].includes((c.status||'').toUpperCase())).length}
             </p>
           </div>
         </div>
