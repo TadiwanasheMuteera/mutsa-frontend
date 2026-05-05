@@ -4,7 +4,6 @@ import {
   FileText,
   Package,
   Link2,
-  Search,
   ShieldCheck,
   ClipboardList,
   UserPlus,
@@ -27,7 +26,6 @@ const INVESTIGATOR_MENU = [
   { path: '/cases/new',      icon: FileText,         label: 'New Case'          },
   { path: '/evidence',       icon: Package,          label: 'Evidence'          },
   { path: '/custody',        icon: Link2,            label: 'Custody Records'   },
-  { path: '/verify',         icon: Search,           label: 'Hash Verification' },
 ]
 
 // Nav items for AUTHORIZER — approve/reject pending cases
@@ -35,15 +33,12 @@ const AUTHORIZER_MENU = [
   { path: '/authorizer',     icon: LayoutDashboard, label: 'Dashboard'        },
   { path: '/cases',          icon: CheckSquare,      label: 'Pending Approvals'},
   { path: '/custody',        icon: Link2,            label: 'Custody Records'  },
-  { path: '/verify',         icon: Search,           label: 'Hash Verification'},
 ]
 
 // Nav items for AUDITOR — read-only audit access only
 const AUDITOR_MENU = [
   { path: '/audit',           icon: ClipboardList, label: 'Audit Monitor'     },
-  { path: '/audit/evidence',  icon: FileText,      label: 'Evidence integrity' },
   { path: '/custody',         icon: Link2,         label: 'Chain of Custody'  },
-  { path: '/verify',          icon: Search,        label: 'Hash Verification' },
 ]
 
 function NavLink({ path, icon: Icon, label, isActive, highlight }) {
