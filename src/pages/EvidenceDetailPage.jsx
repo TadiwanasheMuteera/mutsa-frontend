@@ -5,6 +5,11 @@ import Layout from '../components/layout/Layout'
 import Spinner from '../components/ui/Spinner'
 import Badge from '../components/ui/Badge'
 import { evidenceAPI } from '../api/evidence'
+import {
+  getEvidenceItemName,
+  getEvidenceStatus,
+  formatEvidenceTypeLabel,
+} from '../utils/evidenceDisplay'
 import { ArrowLeft, AlertCircle } from 'lucide-react'
 
 export default function EvidenceDetailPage() {
@@ -87,8 +92,18 @@ export default function EvidenceDetailPage() {
         </div>
 
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-primary">{evidence.name || evidence.description || 'Evidence Item'}</h1>
-          <p className="text-gray-600 text-sm mt-1">Evidence ID: {evidence.id}</p>
+          <h1 className="text-3xl font-bold text-primary">
+            {getEvidenceItemName(evidence)}
+          </h1>
+          <p className="text-gray-600 text-sm mt-1">
+            {evidence.evidence_tag && (
+              <>
+                Tag: <span className="font-mono font-semibold">{evidence.evidence_tag}</span>
+                {' · '}
+              </>
+            )}
+            ID: <span className="font-mono">{evidence.id}</span>
+          </p>
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -105,13 +120,17 @@ export default function EvidenceDetailPage() {
                 {/* Type */}
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 uppercase mb-2">Type</label>
-                  <p className="text-gray-900">{evidence.type || 'File'}</p>
+                  <p className="text-gray-900">{formatEvidenceTypeLabel(evidence)}</p>
                 </div>
 
                 {/* Status */}
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 uppercase mb-2">Status</label>
-                  <Badge status={evidence.status} />
+                  {getEvidenceStatus(evidence) ? (
+                    <Badge status={getEvidenceStatus(evidence)} variant="evidence" />
+                  ) : (
+                    <span className="text-gray-400">N/A</span>
+                  )}
                 </div>
 
                 {/* Source */}

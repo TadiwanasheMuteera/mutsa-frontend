@@ -11,6 +11,11 @@ import { casesAPI } from '../api/cases'
 import { evidenceAPI } from '../api/evidence'
 import { custodyAPI } from '../api/custody'
 import {
+  getEvidenceItemName,
+  getEvidenceStatus,
+  formatEvidenceTypeLabel,
+} from '../utils/evidenceDisplay'
+import {
   ArrowLeft,
   Plus,
   AlertCircle,
@@ -60,7 +65,7 @@ function CustodyDrawer({ isOpen, onClose, evidence, custody }) {
         <div className="sticky top-0 bg-primary text-white p-6 flex items-center justify-between border-b border-gray-200">
           <div>
             <h3 className="text-lg font-semibold">Chain of Custody</h3>
-            <p className="text-xs text-gray-300 mt-1">{evidence?.name}</p>
+            <p className="text-xs text-gray-300 mt-1">{getEvidenceItemName(evidence)}</p>
           </div>
           <button
             onClick={onClose}
@@ -422,7 +427,7 @@ export default function CaseDetailPage() {
                   <table className="w-full">
                     <thead className="bg-gray-50 border-b border-gray-200">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Evidence ID</th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Tag / ID</th>
                         <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Description</th>
                         <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Type</th>
                         <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
@@ -435,16 +440,20 @@ export default function CaseDetailPage() {
                       {evidenceItems?.map((item) => (
                         <tr key={item.id} className="border-b border-gray-200 hover:bg-accent/5 transition-colors">
                           <td className="px-6 py-4 text-sm font-mono text-primary font-semibold">
-                            {item.id.substring(0, 8)}
+                            {item.evidence_tag || item.id.substring(0, 8)}
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
-                            {item.description || item.name}
+                            {item.description || getEvidenceItemName(item)}
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-700">
-                            {item.type || 'File'}
+                            {formatEvidenceTypeLabel(item)}
                           </td>
                           <td className="px-6 py-4 text-sm">
-                            <Badge status={item.status} />
+                            {getEvidenceStatus(item) ? (
+                              <Badge status={getEvidenceStatus(item)} variant="evidence" />
+                            ) : (
+                              <span className="text-gray-400 text-sm">—</span>
+                            )}
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-700">
                             {item.collectedBy || 'N/A'}
