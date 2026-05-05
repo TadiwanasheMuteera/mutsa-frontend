@@ -8,30 +8,18 @@ import { casesAPI } from '../api/cases'
 import { useAuthStore } from '../store/authStore'
 import { isInvestigator } from '../utils/rbac'
 import {
-  Plus, FileText, Clock, CheckCircle2, FolderOpen, WifiOff,
+  Plus, FileText, Clock, CheckCircle2, FolderOpen, AlertCircle,
 } from 'lucide-react'
-
-const MOCK_INV_CASES = [
-  { id: 'm1', case_number: 'COC-2026-001', title: 'SIM Swap Investigation',    status: 'PENDING_APPROVAL',    fraud_type: 'SIM_SWAP' },
-  { id: 'm2', case_number: 'COC-2026-002', title: 'BEC Attack Case',           status: 'OPEN',                fraud_type: 'BEC' },
-  { id: 'm3', case_number: 'COC-2026-003', title: 'Insider Fraud Evidence',    status: 'UNDER_INVESTIGATION', fraud_type: 'INSIDER_FRAUD' },
-  { id: 'm4', case_number: 'COC-2026-004', title: 'Phishing Campaign Probe',   status: 'CLOSED',              fraud_type: 'PHISHING' },
-]
 
 export default function InvestigatorPage() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
 
-  // ── hooks must come before any conditional return ──
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['my-cases', user?.id],
     queryFn: async () => {
-      try {
-        const result = await casesAPI.getCases()
-        return result.cases || result.data || (Array.isArray(result) ? result : [])
-      } catch {
-        return MOCK_INV_CASES
-      }
+      const result = await casesAPI.getCases({ assigned_to: user?.id })
+      return result.cases || result.data || (Array.isArray(result) ? result : [])
     },
     refetchOnMount: true,
     enabled: isInvestigator(user),
@@ -39,16 +27,28 @@ export default function InvestigatorPage() {
 
   if (!isInvestigator(user)) return <Navigate to="/home" replace />
 
-  const cases       = data || []
-  const usingMock   = cases.length > 0 && cases[0]?.id === 'm1'
-  const pending = cases.filter((c) => ['PENDING_APPROVAL','PENDING','AWAITING_APPROVAL'].includes((c.status||'').toUpperCase()))
-  const open    = cases.filter((c) => ['OPEN','ACTIVE','UNDER_INVESTIGATION'].includes((c.status||'').toUpperCase()))
-  const closed  = cases.filter((c) => ['CLOSED','RESOLVED','REJECTED'].includes((c.status||'').toUpperCase()))
+  const allCases = data || []
+
+  // Client-side safety filter: only show cases belonging to the logged-in investigator
+  const myCases = allCases.filter((c) => {
+    const createdBy  = c.created_by  || c.createdBy  || c.creator_id
+    const assignedTo = c.assigned_to || c.assignedTo || c.assigned_user_id || c.investigator_id
+    const userId     = user?.id
+
+    if (!userId) return true // no user id to compare, show all (backend should filter)
+    return (
+      String(createdBy) === String(userId) ||
+      String(assignedTo) === String(userId)
+    )
+  })
+
+  const pending = myCases.filter((c) => ['PENDING_APPROVAL','PENDING','AWAITING_APPROVAL'].includes((c.status||'').toUpperCase()))
+  const open    = myCases.filter((c) => ['OPEN','ACTIVE','UNDER_INVESTIGATION'].includes((c.status||'').toUpperCase()))
+  const closed  = myCases.filter((c) => ['CLOSED','RESOLVED','REJECTED'].includes((c.status||'').toUpperCase()))
 
   return (
     <Layout>
       <div>
-        {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">
             Welcome, {user?.name || user?.full_name || 'Investigator'}
@@ -58,9 +58,10 @@ export default function InvestigatorPage() {
           </p>
         </div>
 
-        {usingMock && (
-          <div className="mb-4 flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-2.5 rounded-xl text-sm">
-            <WifiOff size={14} /> <strong>Demo mode</strong> — sample cases shown. Connect backend to see real data.
+        {error && (
+          <div className="mb-4 flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-xl text-sm">
+            <AlertCircle size={14} />
+            <span>Failed to load cases — {error?.message || 'backend unavailable'}.</span>
           </div>
         )}
 
@@ -90,9 +91,9 @@ export default function InvestigatorPage() {
           <div className="bg-white rounded-xl border border-gray-100 p-5">
             <div className="flex items-center gap-2 mb-1">
               <FileText size={15} className="text-gray-500" />
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Cases</p>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">My Total Cases</p>
             </div>
-            <p className="text-3xl font-bold text-gray-700">{cases.length}</p>
+            <p className="text-3xl font-bold text-gray-700">{myCases.length}</p>
           </div>
         </div>
 
@@ -108,22 +109,22 @@ export default function InvestigatorPage() {
             onClick={() => navigate('/cases')}
             className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2.5 rounded-lg font-medium text-sm hover:bg-gray-50"
           >
-            <FileText size={16} /> View All Cases
+            <FileText size={16} /> View All My Cases
           </button>
         </div>
 
-        {/* Recent cases */}
+        {/* My recent cases */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100">
-            <h2 className="text-sm font-bold text-gray-700">Recent Cases</h2>
+            <h2 className="text-sm font-bold text-gray-700">My Recent Cases</h2>
           </div>
 
           {isLoading ? (
             <div className="flex justify-center py-10"><Spinner /></div>
-          ) : cases.length === 0 ? (
+          ) : myCases.length === 0 ? (
             <div className="py-12 text-center">
               <FileText size={28} className="text-gray-300 mx-auto mb-2" />
-              <p className="text-sm text-gray-400">No cases yet — create your first case</p>
+              <p className="text-sm text-gray-400">You have no cases yet — create your first case</p>
               <button onClick={() => navigate('/cases/new')}
                 className="mt-3 text-xs text-accent hover:underline">
                 Create case →
@@ -131,7 +132,7 @@ export default function InvestigatorPage() {
             </div>
           ) : (
             <div className="divide-y divide-gray-100">
-              {cases.slice(0, 8).map((c) => (
+              {myCases.slice(0, 10).map((c) => (
                 <div key={c.id}
                   onClick={() => navigate(`/cases/${c.id}`)}
                   className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 cursor-pointer transition-colors"
