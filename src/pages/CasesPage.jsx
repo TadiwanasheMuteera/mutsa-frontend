@@ -23,10 +23,7 @@ export default function CasesPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['cases', isInvestigator(user) ? user?.id : 'all'],
     queryFn: async () => {
-      const result =
-        isInvestigator(user) && user?.id
-          ? await casesAPI.getCases({ assigned_to: user.id })
-          : await casesAPI.getCases()
+      const result = await casesAPI.getCases({ page: 1, per_page: 100 })
       return result.cases || result.data || []
     },
     refetchOnMount: true,
@@ -45,6 +42,16 @@ export default function CasesPage() {
           (c.status || '').toUpperCase()
         )
       )
+    }
+
+    if (isInvestigator(user) && user?.id) {
+      list = list.filter((c) => {
+        const createdBy = c.created_by || c.createdBy || c.creator_id
+        const assignedTo = c.assigned_to || c.assignedTo || c.assigned_user_id || c.investigator_id
+        return (
+          String(createdBy) === String(user.id) || String(assignedTo) === String(user.id)
+        )
+      })
     }
 
     // Search — match case_number, id, or title
@@ -178,6 +185,19 @@ export default function CasesPage() {
                     c.assigned_user_name ||
                     c.investigator_name ||
                     c.assigned_to_name ||
+                    c.created_by_name ||
+                    c.creator_name ||
+                    c.created_by_user_name ||
+                    (c.created_by &&
+                    user?.id &&
+                    String(c.created_by) === String(user.id)
+                      ? user?.name || user?.full_name || user?.email
+                      : null) ||
+                    (c.assigned_to &&
+                    user?.id &&
+                    String(c.assigned_to) === String(user.id)
+                      ? user?.name || user?.full_name || user?.email
+                      : null) ||
                     '—'
                   const fraudLabel = c.fraud_type ? String(c.fraud_type).replace(/_/g, ' ') : '—'
                   const updated =

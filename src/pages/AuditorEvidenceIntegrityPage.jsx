@@ -1,4 +1,4 @@
-import { Navigate } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import Layout from '../components/layout/Layout'
 import Spinner from '../components/ui/Spinner'
@@ -93,18 +93,21 @@ export default function AuditorEvidenceIntegrityPage() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Integrity
                   </th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Verify
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={7} className="py-16 text-center">
+                    <td colSpan={8} className="py-16 text-center">
                       <Spinner />
                     </td>
                   </tr>
                 ) : items.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-gray-500 text-sm">
+                    <td colSpan={8} className="py-12 text-center text-gray-500 text-sm">
                       No evidence returned from the API.
                     </td>
                   </tr>
@@ -116,8 +119,9 @@ export default function AuditorEvidenceIntegrityPage() {
                     const st = getEvidenceStatus(item)
                     const integrityFromApi =
                       item.hash_status || item.hashStatus || item.integrity_status || null
+                    const rowId = item.id || item.evidence_id
                     return (
-                      <tr key={item.id} className="hover:bg-gray-50">
+                      <tr key={rowId || tag} className="hover:bg-gray-50">
                         <td className="px-4 py-3 font-mono text-xs text-gray-800">{tag}</td>
                         <td className="px-4 py-3 font-medium text-gray-900 max-w-[200px] truncate">
                           {getEvidenceItemName(item)}
@@ -147,6 +151,18 @@ export default function AuditorEvidenceIntegrityPage() {
                             <span className="text-xs font-semibold text-gray-800">{integrityFromApi}</span>
                           ) : (
                             <HashBadge status={hash ? 'INTACT' : 'PENDING'} />
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {rowId ? (
+                            <Link
+                              to={`/verify/${rowId}`}
+                              className="text-teal-700 hover:text-teal-900 text-xs font-semibold"
+                            >
+                              Verify hash
+                            </Link>
+                          ) : (
+                            <span className="text-gray-300">—</span>
                           )}
                         </td>
                       </tr>

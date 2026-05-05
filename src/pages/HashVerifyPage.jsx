@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import Layout from '../components/layout/Layout'
@@ -8,18 +8,28 @@ import HashBadge from '../components/ui/HashBadge'
 import { evidenceAPI } from '../api/evidence'
 import { CheckCircle2, AlertTriangle, FileUp, AlertCircle, Lock } from 'lucide-react'
 
+import { getEvidenceItemName } from '../utils/evidenceDisplay'
+
 export default function HashVerifyPage() {
-  const { evidenceId } = useParams()
+  const { evidenceId: evidenceIdParam } = useParams()
+  const navigate = useNavigate()
+  const evidenceId = evidenceIdParam || ''
   const fileInputRef = useRef(null)
   const [selectedFile, setSelectedFile] = useState(null)
   const [isDragging, setIsDragging] = useState(false)
   const [verificationResult, setVerificationResult] = useState(null)
   const [verificationError, setVerificationError] = useState('')
 
+  const { data: pickerList, isLoading: pickerLoading, error: pickerError } = useQuery({
+    queryKey: ['hash-verify-evidence-picker'],
+    queryFn: () => evidenceAPI.getAllEvidence(),
+    enabled: !evidenceIdParam,
+  })
+
   const { data: evidence, isLoading: evidenceLoading, error: evidenceError } = useQuery({
     queryKey: ['evidence', evidenceId],
     queryFn: () => evidenceAPI.getEvidenceById(evidenceId),
-    enabled: !!evidenceId,
+    enabled: Boolean(evidenceIdParam),
   })
 
   const {
@@ -29,7 +39,7 @@ export default function HashVerifyPage() {
   } = useQuery({
     queryKey: ['evidence-hash-metadata', evidenceId],
     queryFn: () => evidenceAPI.getHashMetadata(evidenceId),
-    enabled: !!evidenceId,
+    enabled: Boolean(evidenceIdParam),
   })
 
   const verifyMutation = useMutation({
@@ -73,11 +83,62 @@ export default function HashVerifyPage() {
   }
 
   const handleVerifyIntegrity = () => {
-    if (!selectedFile || !evidenceId) {
+    if (!selectedFile || !evidenceIdParam) {
       setVerificationError('Please select a file to verify')
       return
     }
-    verifyMutation.mutate({ id: evidenceId, file: selectedFile })
+    verifyMutation.mutate({ id: evidenceIdParam, file: selectedFile })
+  }
+
+  if (!evidenceIdParam) {
+    return (
+      <Layout>
+        <div className="max-w-lg mx-auto space-y-4">
+          <h1 className="text-2xl font-bold text-gray-900">Hash verification</h1>
+          <p className="text-sm text-gray-600">
+            Choose an evidence record to verify. (The sidebar links here without an ID — this screen lists everything
+            available from the API.)
+          </p>
+          {pickerLoading ? (
+            <div className="flex justify-center py-12">
+              <Spinner />
+            </div>
+          ) : pickerError ? (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+              {pickerError?.message || 'Could not load evidence list.'}
+            </div>
+          ) : (
+            <>
+              <label className="block text-sm font-semibold text-gray-700">Evidence item</label>
+              <select
+                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white"
+                defaultValue=""
+                onChange={(e) => {
+                  const id = e.target.value
+                  if (id) navigate(`/verify/${id}`, { replace: true })
+                }}
+              >
+                <option value="" disabled>
+                  Select evidence…
+                </option>
+                {(pickerList || []).map((item) => {
+                  const id = item.id || item.evidence_id
+                  if (!id) return null
+                  return (
+                    <option key={id} value={id}>
+                      {getEvidenceItemName(item)} ({String(id).slice(0, 8)}…)
+                    </option>
+                  )
+                })}
+              </select>
+              {(pickerList || []).length === 0 && (
+                <p className="text-sm text-gray-500">No evidence items found. Upload evidence on a case first.</p>
+              )}
+            </>
+          )}
+        </div>
+      </Layout>
+    )
   }
 
   if (evidenceLoading) {
@@ -90,13 +151,22 @@ export default function HashVerifyPage() {
     )
   }
 
-  if (evidenceError || !evidence) {
+  const evidenceResolved = evidence && (evidence.id || evidence.evidence_id)
+
+  if (evidenceError || !evidenceResolved) {
     return (
       <Layout>
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
           <AlertCircle className="mx-auto mb-2 text-red-600" size={48} />
           <h2 className="text-lg font-semibold text-red-900 mb-2">Evidence Not Found</h2>
           <p className="text-red-700">{evidenceError?.message || 'The evidence item could not be loaded.'}</p>
+          <button
+            type="button"
+            onClick={() => navigate('/verify', { replace: true })}
+            className="mt-4 text-sm text-accent font-semibold hover:underline"
+          >
+            ← Pick a different evidence item
+          </button>
         </div>
       </Layout>
     )
@@ -120,7 +190,7 @@ export default function HashVerifyPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <p className="text-sm text-gray-600 font-semibold">Evidence ID</p>
-              <p className="text-lg font-mono text-gray-900 mt-1">{evidence.id}</p>
+              <p className="text-lg font-mono text-gray-900 mt-1">{evidence.id || evidence.evidence_id}</p>
             </div>
             <div>
               <p className="text-sm text-gray-600 font-semibold">Case</p>

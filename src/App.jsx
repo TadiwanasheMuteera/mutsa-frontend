@@ -12,6 +12,7 @@ import DashboardPage      from './pages/DashboardPage'
 import CasesPage          from './pages/CasesPage'
 import CaseDetailPage     from './pages/CaseDetailPage'
 import NewCasePage        from './pages/NewCasePage'
+import EditCasePage       from './pages/EditCasePage'
 import EvidencePage       from './pages/EvidencePage'
 import EvidenceDetailPage from './pages/EvidenceDetailPage'
 import NewEvidencePage    from './pages/NewEvidencePage'
@@ -181,6 +182,14 @@ function AppContent() {
         element={
           <ProtectedRoute allowedRoles={['INVESTIGATOR']}>
             <NewCasePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/cases/:caseId/edit"
+        element={
+          <ProtectedRoute allowedRoles={['INVESTIGATOR']}>
+            <EditCasePage />
           </ProtectedRoute>
         }
       />

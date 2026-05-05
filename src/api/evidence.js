@@ -1,4 +1,29 @@
 import axiosInstance from './axios'
+import { casesAPI } from './cases'
+
+/**
+ * When GET /api/evidence is not implemented (common on older backends), build the
+ * same list by walking cases and merging per-case evidence.
+ */
+async function aggregateAllEvidenceFromCases() {
+  const { cases = [] } = await casesAPI.getCases({ page: 1, per_page: 500 })
+  const lists = await Promise.all(
+    (cases || []).map((c) =>
+      c?.id
+        ? axiosInstance
+            .get(`/evidence/cases/${c.id}/evidence`)
+            .then((res) => {
+              const { success, data, message } = res.data
+              if (!success) return []
+              const evidence = data?.evidence || data?.evidences || data?.items || []
+              return Array.isArray(evidence) ? evidence : []
+            })
+            .catch(() => [])
+        : Promise.resolve([])
+    )
+  )
+  return lists.flat()
+}
 
 /**
  * Evidence API Client
@@ -13,16 +38,23 @@ export const evidenceAPI = {
    * @returns {Promise<Array<{id, evidence_type, file_name, collected_by, collection_date, status}>>}
    */
   getAllEvidence: async () => {
-    const response = await axiosInstance.get('/evidence')
-    const { success, data, message } = response.data
-    
-    if (!success) {
-      throw { response: { data: { message } } }
+    try {
+      const response = await axiosInstance.get('/evidence')
+      const { success, data, message } = response.data
+
+      if (!success) {
+        throw { response: { data: { message } } }
+      }
+
+      const evidence = data.evidence || data.evidences || data.items || []
+      return Array.isArray(evidence) ? evidence : []
+    } catch (err) {
+      const st = err?.status ?? err?.response?.status
+      if (st === 404) {
+        return aggregateAllEvidenceFromCases()
+      }
+      throw err
     }
-    
-    // Handle multiple response format variations from backend
-    const evidence = data.evidence || data.evidences || data.items || []
-    return Array.isArray(evidence) ? evidence : []
   },
 
   /**
@@ -107,16 +139,31 @@ export const evidenceAPI = {
    * @returns {Promise<{id, evidence_type, file_name, file_hash, description, source, collected_by, collection_date, notes, status, created_at, updated_at}>}
    */
   getEvidenceById: async (evidenceId) => {
-    const response = await axiosInstance.get(`/evidence/evidence/${evidenceId}`)
-    const { success, data, message } = response.data
-    
-    if (!success) {
-      throw { response: { data: { message } } }
+    const tryPaths = [`/evidence/evidence/${evidenceId}`, `/evidence/${evidenceId}`]
+    let lastErr = null
+    for (const path of tryPaths) {
+      try {
+        const response = await axiosInstance.get(path)
+        const { success, data, message } = response.data
+
+        if (!success) {
+          throw { response: { data: { message } } }
+        }
+
+        const evidence = data?.evidence || data?.data || data
+        const row =
+          evidence && typeof evidence === 'object' && !Array.isArray(evidence) ? evidence : null
+        if (row && (row.id || row.evidence_id)) {
+          return row.id ? row : { ...row, id: row.evidence_id }
+        }
+        lastErr = { response: { data: { message: message || 'Evidence not found' } } }
+      } catch (err) {
+        lastErr = err
+        const st = err?.status ?? err?.response?.status
+        if (st !== 404) throw err
+      }
     }
-    
-    // Handle multiple response format variations from backend
-    const evidence = data.evidence || data.data || data
-    return evidence || {}
+    throw lastErr || { response: { data: { message: 'Evidence not found' } } }
   },
 
   /**

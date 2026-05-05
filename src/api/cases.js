@@ -140,7 +140,7 @@ export const casesAPI = {
       throw { response: { data: { message } } }
     }
     
-    return data.case
+    return data.case || data
   },
 
   /**

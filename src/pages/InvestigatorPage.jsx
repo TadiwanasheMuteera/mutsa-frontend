@@ -21,7 +21,7 @@ export default function InvestigatorPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['my-cases', user?.id],
     queryFn: async () => {
-      const result = await casesAPI.getCases({ assigned_to: user?.id })
+      const result = await casesAPI.getCases({ page: 1, per_page: 100 })
       return result.cases || result.data || (Array.isArray(result) ? result : [])
     },
     refetchOnMount: true,
@@ -212,7 +212,14 @@ export default function InvestigatorPage() {
                           : '—'}
                       </td>
                       <td className="px-4 py-3 text-right tabular-nums text-gray-800">{evidenceCountAt(idx)}</td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-right space-x-3">
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/cases/${c.id}/edit`)}
+                          className="text-gray-700 hover:text-gray-900 font-semibold"
+                        >
+                          Edit
+                        </button>
                         <button
                           type="button"
                           onClick={() => navigate(`/cases/${c.id}`)}

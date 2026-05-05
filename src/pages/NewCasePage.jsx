@@ -87,6 +87,7 @@ export default function NewCasePage() {
     mutationFn: (data) => casesAPI.createCase(data),
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: ['cases'] })
+      queryClient.invalidateQueries({ queryKey: ['my-cases'] })
       setStep(3)
       // Store created reference for success screen
       setPreview((p) => ({ ...p, case_number: created?.case_number }))
@@ -101,7 +102,8 @@ export default function NewCasePage() {
   const handleReview = (data) => {
     setGeneralError('')
     const fraudLabel = FRAUD_TYPES.find((f) => f.value === data.fraud_type)?.label || data.fraud_type
-    setPreview({ ...data, fraud_type_label: fraudLabel })
+    const leadId = data.reassign_to?.trim() || user?.id
+    setPreview({ ...data, fraud_type_label: fraudLabel, assigned_to: leadId })
     setStep(2)
   }
 
@@ -189,12 +191,19 @@ export default function NewCasePage() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Assign To (User ID)</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Lead investigator</label>
+                <p className="text-sm text-gray-800 mb-1">
+                  {user?.name || user?.full_name || user?.email || '—'}{' '}
+                  <span className="text-gray-400">(you — submitted as assigned lead by default)</span>
+                </p>
+                <p className="text-xs text-gray-400 mb-1">
+                  Use the field below only if another user should own this case.
+                </p>
                 <input
                   type="text"
-                  {...register('assigned_to')}
+                  {...register('reassign_to')}
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent text-sm"
-                  placeholder="Optional: user ID to assign this case to"
+                  placeholder="Optional: different investigator user ID"
                 />
               </div>
 
@@ -236,7 +245,15 @@ export default function NewCasePage() {
               <PreviewRow icon={AlertCircle} label="Fraud Type"     value={preview.fraud_type_label} />
               <PreviewRow icon={AlignLeft}   label="Description"    value={preview.description} />
               <PreviewRow icon={User}        label="Suspect Info"   value={preview.suspect_info} />
-              <PreviewRow icon={User}        label="Assigned To"    value={preview.assigned_to} />
+              <PreviewRow
+                icon={User}
+                label="Lead investigator"
+                value={
+                  preview.assigned_to === user?.id
+                    ? `${user?.name || user?.full_name || user?.email || user?.id} (you)`
+                    : preview.assigned_to
+                }
+              />
               <PreviewRow icon={User}        label="Created By"     value={user?.name || user?.email} />
 
               {generalError && (
