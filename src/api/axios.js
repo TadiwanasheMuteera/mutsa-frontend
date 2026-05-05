@@ -18,9 +18,27 @@ const normaliseUrl = (url) => {
   return stripped.endsWith('/api') ? stripped : `${stripped}/api`
 }
 
-const CONFIGURED_API_BASE_URL =
+/**
+ * HTTPS frontends (e.g. Vercel) cannot call http:// APIs (mixed content). Railway and
+ * most hosts serve the same hostname on https — upgrade when the page is secure.
+ */
+const upgradeHttpToHttpsWhenPageIsSecure = (url) => {
+  if (!url || import.meta.env.DEV) return url
+  if (typeof window === 'undefined' || window.location.protocol !== 'https:') return url
+  if (!/^http:\/\//i.test(url)) return url
+  try {
+    const { hostname } = new URL(url)
+    if (hostname === 'localhost' || hostname === '127.0.0.1') return url
+  } catch {
+    return url
+  }
+  return url.replace(/^http:\/\//i, 'https://')
+}
+
+const CONFIGURED_API_BASE_URL = upgradeHttpToHttpsWhenPageIsSecure(
   normaliseUrl(VITE_API_URL) ??
-  (VITE_API_BASE_URL ? `${VITE_API_BASE_URL.replace(/\/+$/, '')}/api` : 'http://localhost:5000/api')
+    (VITE_API_BASE_URL ? `${VITE_API_BASE_URL.replace(/\/+$/, '')}/api` : 'http://localhost:5000/api')
+)
 
 // Dev: empty string so Vite proxy handles /api/* without CORS issues.
 // Prod (Vercel): use the configured backend URL directly.
