@@ -71,12 +71,51 @@ export const usersAPI = {
         total: data?.total || 0,
       }
     } catch (err) {
-      // Fall back to local demo store when backend is unavailable
       if (!err?.response || err?.code === 'ERR_NETWORK' || err?.response?.status >= 500) {
         return { users: [...DEMO_DB], total: DEMO_DB.length }
       }
       const message = err?.response?.data?.message || err?.message || 'Failed to fetch users'
       throw new Error(message)
+    }
+  },
+
+  /** Delete a user by ID. */
+  deleteUser: async (userId) => {
+    try {
+      const response = await axiosInstance.delete(`/admin/users/${userId}`)
+      const { success, message } = response.data
+      if (!success) throw new Error(message || 'Failed to delete user')
+      const idx = DEMO_DB.findIndex((u) => u.id === userId)
+      if (idx !== -1) DEMO_DB.splice(idx, 1)
+      return { success: true }
+    } catch (err) {
+      if (!err?.response || err?.code === 'ERR_NETWORK' || err?.response?.status >= 500) {
+        const idx = DEMO_DB.findIndex((u) => u.id === userId)
+        if (idx === -1) throw new Error('User not found')
+        DEMO_DB.splice(idx, 1)
+        return { success: true }
+      }
+      throw new Error(err?.response?.data?.message || err?.message || 'Failed to delete user')
+    }
+  },
+
+  /** Update a user's role (promote / demote). */
+  updateUserRole: async (userId, newRole) => {
+    try {
+      const response = await axiosInstance.put(`/admin/users/${userId}/role`, { role: newRole })
+      const { success, data, message } = response.data
+      if (!success) throw new Error(message || 'Failed to update role')
+      const user = DEMO_DB.find((u) => u.id === userId)
+      if (user) user.role = newRole
+      return data?.user || data || { id: userId, role: newRole }
+    } catch (err) {
+      if (!err?.response || err?.code === 'ERR_NETWORK' || err?.response?.status >= 500) {
+        const user = DEMO_DB.find((u) => u.id === userId)
+        if (!user) throw new Error('User not found')
+        user.role = newRole
+        return { ...user }
+      }
+      throw new Error(err?.response?.data?.message || err?.message || 'Failed to update role')
     }
   },
 }

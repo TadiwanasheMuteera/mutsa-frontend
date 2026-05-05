@@ -1,519 +1,388 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { formatDistanceToNow, format } from 'date-fns'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Layout from '../components/layout/Layout'
-import StatCard from '../components/ui/StatCard'
+import Spinner from '../components/ui/Spinner'
+import Modal from '../components/ui/Modal'
 import { useAuthStore } from '../store/authStore'
-import { ROLES, normalizeRole } from '../utils/rbac'
-import { casesAPI } from '../api/cases'
-import { evidenceAPI } from '../api/evidence'
+import { usersAPI } from '../api/users'
 import {
-  FileText,
-  Package,
-  Clock,
-  AlertCircle,
-  CheckCircle2,
-  AlertTriangle,
-  ArrowRight,
-  WifiOff,
+  Users, UserPlus, ShieldCheck, Trash2, ArrowUpDown,
+  AlertCircle, CheckCircle2, Search, WifiOff,
 } from 'lucide-react'
 
-// ── Demo / mock data shown when backend is unavailable ───────────────────────
-const MOCK_CASES = [
-  { id: 'c1', case_number: 'COC-2026-001', title: 'SIM Swap Fraud',          fraud_type: 'SIM_SWAP',        status: 'OPEN',             evidenceCount: 3, assigned_to: null, updated_at: new Date().toISOString() },
-  { id: 'c2', case_number: 'COC-2026-002', title: 'Business Email Compromise',fraud_type: 'BEC',             status: 'UNDER_INVESTIGATION',evidenceCount: 7, assigned_to: null, updated_at: new Date().toISOString() },
-  { id: 'c3', case_number: 'COC-2026-003', title: 'Insider Trading Evidence', fraud_type: 'INSIDER_FRAUD',   status: 'PENDING_APPROVAL', evidenceCount: 2, assigned_to: null, updated_at: new Date().toISOString() },
-  { id: 'c4', case_number: 'COC-2026-004', title: 'Phishing Campaign',        fraud_type: 'PHISHING',        status: 'CLOSED',           evidenceCount: 5, assigned_to: null, updated_at: new Date().toISOString() },
-]
+const ROLE_OPTIONS = ['ADMIN', 'INVESTIGATOR', 'AUTHORIZER', 'AUDITOR']
 
-// Loading skeleton component
-function SkeletonCard() {
-  return (
-    <div className="bg-white rounded-lg shadow p-6 border border-gray-200 animate-pulse">
-      <div className="h-4 bg-gray-200 rounded w-24 mb-4"></div>
-      <div className="h-8 bg-gray-200 rounded w-16"></div>
-    </div>
-  )
+const ROLE_STYLES = {
+  ADMIN:        { bg: 'bg-purple-100 text-purple-800 border-purple-300', dot: 'bg-purple-500' },
+  INVESTIGATOR: { bg: 'bg-blue-100 text-blue-800 border-blue-300',     dot: 'bg-blue-500'   },
+  AUTHORIZER:   { bg: 'bg-amber-100 text-amber-800 border-amber-300',  dot: 'bg-amber-500'  },
+  AUDITOR:      { bg: 'bg-green-100 text-green-800 border-green-300',  dot: 'bg-green-500'  },
 }
 
-function SkeletonRow() {
+function RoleBadge({ role }) {
+  const style = ROLE_STYLES[role] || ROLE_STYLES.AUDITOR
   return (
-    <tr className="border-b border-gray-200">
-      <td className="px-6 py-4">
-        <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
-      </td>
-      <td className="px-6 py-4">
-        <div className="h-4 bg-gray-200 rounded w-32 animate-pulse"></div>
-      </td>
-      <td className="px-6 py-4">
-        <div className="h-4 bg-gray-200 rounded w-24 animate-pulse"></div>
-      </td>
-      <td className="px-6 py-4">
-        <div className="h-4 bg-gray-200 rounded w-16 animate-pulse"></div>
-      </td>
-      <td className="px-6 py-4">
-        <div className="h-4 bg-gray-200 rounded w-24 animate-pulse"></div>
-      </td>
-      <td className="px-6 py-4">
-        <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
-      </td>
-    </tr>
-  )
-}
-
-// Fraud type badge
-function FraudTypeBadge({ type }) {
-  const fraudColors = {
-    SIM_SWAP: 'bg-red-100 text-red-800 border border-red-300',
-    BEC: 'bg-orange-100 text-orange-800 border border-orange-300',
-    INSIDER_FRAUD: 'bg-purple-100 text-purple-800 border border-purple-300',
-    PHISHING: 'bg-yellow-100 text-yellow-800 border border-yellow-300',
-    IDENTITY_THEFT: 'bg-pink-100 text-pink-800 border border-pink-300',
-    MONEY_LAUNDERING: 'bg-indigo-100 text-indigo-800 border border-indigo-300',
-    CYBER_ATTACK: 'bg-cyan-100 text-cyan-800 border border-cyan-300',
-  }
-
-  const color = fraudColors[type] || 'bg-gray-100 text-gray-800 border border-gray-300'
-  const label = type?.replace(/_/g, ' ') || 'Unknown'
-
-  return (
-    <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${color}`}>
-      {label}
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${style.bg}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
+      {role}
     </span>
   )
 }
 
-// Status badge
-function StatusBadge({ status }) {
-  const colors = {
-    ACTIVE: 'bg-green-100 text-green-800',
-    PENDING: 'bg-yellow-100 text-yellow-800',
-    ARCHIVED: 'bg-gray-100 text-gray-800',
-    REFERRED: 'bg-blue-100 text-blue-800',
-    CLOSED: 'bg-red-100 text-red-800',
-  }
-
-  const color = colors[status] || 'bg-gray-100 text-gray-800'
-
-  return (
-    <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${color}`}>
-      {status}
-    </span>
-  )
+function getInitials(name) {
+  if (!name) return 'U'
+  return name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() || '').join('') || 'U'
 }
 
 export default function DashboardPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { user } = useAuthStore()
 
-  const { data: cases = [], isLoading: casesLoading, error: casesError } = useQuery({
-    queryKey: ['cases'],
-    queryFn: async () => {
-      try {
-        const result = await casesAPI.getCases()
-        return result.cases || result.data || (Array.isArray(result) ? result : [])
-      } catch (err) {
-        // Return mock data on any error (demo token, backend down, 500, etc.)
-        console.warn('Dashboard: API unavailable, using demo data:', err?.message)
-        return MOCK_CASES
-      }
-    },
-    refetchOnMount: 'stale',
-    staleTime: 30_000,
+  const [searchTerm, setSearchTerm] = useState('')
+  const [roleFilter, setRoleFilter] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [promoteTarget, setPromoteTarget] = useState(null)
+  const [newRole, setNewRole] = useState('')
+
+  const { data: usersData, isLoading, error } = useQuery({
+    queryKey: ['users'],
+    queryFn: () => usersAPI.getUsers(),
     retry: 1,
   })
 
-  const usingMockData = cases === MOCK_CASES || cases.some((c) => c.id === 'c1')
+  const allUsers = usersData?.users || usersData?.data || (Array.isArray(usersData) ? usersData : [])
+  const usingMock = allUsers.length > 0 && allUsers[0]?.id?.startsWith?.('u-')
 
-  // Enrich cases with evidence counts — silently skip if backend unavailable
-  const { data: enrichedCases = [] } = useQuery({
-    queryKey: ['dashboard-enriched-cases', cases.length],
-    queryFn: async () => {
-      if (!cases || cases.length === 0) return []
-      const enriched = await Promise.all(
-        cases.map(async (caseItem) => {
-          try {
-            const evidenceResult = await evidenceAPI.getEvidenceByCaseId(caseItem.id)
-            const evidenceList = Array.isArray(evidenceResult) ? evidenceResult : []
-            return { ...caseItem, evidenceCount: evidenceList.length, evidence: evidenceList }
-          } catch {
-            return { ...caseItem, evidenceCount: caseItem.evidenceCount || 0, evidence: [] }
-          }
-        })
-      )
-      return enriched
+  const deleteMutation = useMutation({
+    mutationFn: (userId) => usersAPI.deleteUser(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      setDeleteTarget(null)
     },
-    enabled: cases.length > 0 && !usingMockData,
-    staleTime: 30_000,
   })
 
-  if (casesLoading) {
-    return (
-      <Layout>
-        <div>
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-primary">Dashboard</h1>
-            <p className="text-gray-600 text-sm mt-1">Welcome back! Here's your forensic evidence overview.</p>
-          </div>
-
-          {/* Skeleton Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            {[...Array(4)].map((_, i) => (
-              <SkeletonCard key={i} />
-            ))}
-          </div>
-
-          {/* Skeleton Table */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <div className="h-6 bg-gray-200 rounded w-32 animate-pulse"></div>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Reference Number</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Fraud Type</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Evidence</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Assigned To</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Last Updated</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...Array(5)].map((_, i) => (
-                    <SkeletonRow key={i} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </Layout>
-    )
-  }
-
-  // Calculate statistics using enriched cases data
-  const displayCases = enrichedCases.length > 0 ? enrichedCases : cases
-  const currentRole = normalizeRole(user?.role) || ROLES.AUDITOR
-  
-  // Active cases = all open cases (not CLOSED and not ARCHIVED)
-  const activeCases = displayCases?.filter(c => 
-    c.status !== 'CLOSED' && c.status !== 'ARCHIVED' && c.status !== null && c.status !== undefined
-  ).length || 0
-  const totalEvidence = displayCases?.reduce((sum, c) => sum + (c.evidenceCount || 0), 0) || 0
-  const pendingTransfers = 0 // TODO: fetch from custody API if needed
-  const prosecutionReferrals = displayCases?.filter(c => c.status === 'REFERRED').length || 0
-
-  // Get tampered evidence (from evidence data)
-  const tamperedEvidence = displayCases
-    ?.flatMap(c =>
-      (c.evidence || [])
-        .filter(e => e.hashStatus === 'TAMPERED' || e.hash_status === 'TAMPERED')
-        .map(e => ({
-          ...e,
-          caseId: c.id,
-          caseNo: c.case_number || c.caseNumber || c.id.substring(0, 8),
-        }))
-    )
-    .slice(0, 5) || []
-
-  // Get recent activity from all cases (this would need custody records fetched)
-  const recentActivity = displayCases
-    ?.flatMap(c =>
-      (c.custodyRecords || []).map(record => ({
-        ...record,
-        caseId: c.id,
-        caseNo: c.case_number || c.caseNumber || c.id.substring(0, 8),
-      }))
-    )
-    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-    .slice(0, 10) || []
-
-  const assignedCases = displayCases?.filter((caseItem) => {
-    const assignedId = caseItem.assigned_to || caseItem.assignedTo || caseItem.assigned_user_id
-    const assignedName = caseItem.assigned_name || caseItem.assignedTo || caseItem.investigator
-    const hasSameId = assignedId && user?.id && String(assignedId) === String(user.id)
-    const hasSameName = assignedName && user?.name &&
-      String(assignedName).toLowerCase().includes(String(user.name).toLowerCase())
-    return hasSameId || hasSameName
-  }).length || 0
-
-  const pendingCases = displayCases?.filter(c => c.status === 'PENDING').length || 0
-  const archivedCases = displayCases?.filter(c => c.status === 'ARCHIVED').length || 0
-
-  const roleConfig = {
-    [ROLES.ADMIN]: {
-      tone: 'bg-purple-50 border-purple-200 text-purple-900',
-      title: 'Administrator View',
-      message: 'Full platform visibility with governance and integrity monitoring tools.',
+  const promoteMutation = useMutation({
+    mutationFn: ({ userId, role }) => usersAPI.updateUserRole(userId, role),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      setPromoteTarget(null)
+      setNewRole('')
     },
-    [ROLES.AUDITOR]: {
-      tone: 'bg-blue-50 border-blue-200 text-blue-900',
-      title: 'Auditor View',
-      message: 'Audit dashboard focused on custody history, access monitoring, and integrity checks.',
-    },
-  }[currentRole] || {
-    tone: 'bg-blue-50 border-blue-200 text-blue-900',
-    title: 'Auditor View',
-    message: 'Audit dashboard focused on custody history, access monitoring, and integrity checks.',
-  }
+  })
 
-  const roleStatCards = {
-    [ROLES.ADMIN]: [
-      { title: 'Active Cases', value: activeCases, icon: FileText, color: 'accent' },
-      { title: 'Evidence Logged', value: totalEvidence, icon: Package, color: 'green' },
-      { title: 'Integrity Alerts', value: tamperedEvidence.length, icon: AlertTriangle, color: 'red' },
-      { title: 'Referred to Prosecution', value: prosecutionReferrals, icon: CheckCircle2, color: 'primary' },
-    ],
-    [ROLES.AUDITOR]: [
-      { title: 'Evidence Actions Today', value: recentActivity.length, icon: Clock, color: 'blue' },
-      { title: 'Chain Integrity Alerts', value: tamperedEvidence.length, icon: AlertTriangle, color: 'red' },
-      { title: 'Active Cases', value: activeCases, icon: FileText, color: 'accent' },
-      { title: 'Evidence Logged', value: totalEvidence, icon: Package, color: 'green' },
-    ],
-  }[currentRole] || []
+  const filtered = allUsers.filter((u) => {
+    const matchesSearch =
+      !searchTerm ||
+      (u.full_name || u.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (u.email || '').toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesRole = !roleFilter || (u.role || '').toUpperCase() === roleFilter
+    return matchesSearch && matchesRole
+  })
+
+  const roleCounts = ROLE_OPTIONS.reduce((acc, role) => {
+    acc[role] = allUsers.filter((u) => (u.role || '').toUpperCase() === role).length
+    return acc
+  }, {})
 
   return (
     <Layout>
       <div>
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-primary">Dashboard</h1>
-          <p className="text-gray-600 text-sm mt-1">Welcome back! Here's your forensic evidence overview.</p>
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <ShieldCheck size={24} className="text-purple-600" />
+            Admin Dashboard
+          </h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Manage system users — create, delete, and assign roles
+          </p>
         </div>
 
-        {/* Demo / offline banner */}
-        {(usingMockData || casesError) && (
-          <div className="mb-4 flex items-center gap-3 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl text-sm">
-            <WifiOff size={16} className="flex-shrink-0" />
+        {(usingMock || error) && (
+          <div className="mb-4 flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-2.5 rounded-xl text-sm">
+            <WifiOff size={14} />
             <span>
-              <strong>Demo mode</strong> — backend not connected. Showing sample data.
-              {casesError && !casesError?.isDemo && (
-                <span className="ml-1 text-xs text-amber-600">({casesError.message})</span>
-              )}
+              <strong>Demo mode</strong> — backend not connected. Changes are local only.
             </span>
           </div>
         )}
 
-        <div className={`mb-6 rounded-xl border px-4 py-3 ${roleConfig.tone}`}>
-          <p className="font-semibold text-sm">{roleConfig.title}</p>
-          <p className="text-xs mt-1 opacity-90">{roleConfig.message}</p>
+        {/* Role stat cards */}
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+          {ROLE_OPTIONS.map((role) => {
+            const style = ROLE_STYLES[role]
+            return (
+              <button
+                key={role}
+                type="button"
+                onClick={() => setRoleFilter(roleFilter === role ? '' : role)}
+                className={`bg-white rounded-xl border p-5 text-left transition-all ${
+                  roleFilter === role ? 'ring-2 ring-accent border-accent' : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span className={`h-2.5 w-2.5 rounded-full ${style.dot}`} />
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{role}</p>
+                </div>
+                <p className="text-3xl font-bold text-gray-900">{roleCounts[role]}</p>
+              </button>
+            )
+          })}
         </div>
 
-        {/* Statistics Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {roleStatCards.map((card) => (
-            <StatCard
-              key={card.title}
-              title={card.title}
-              value={card.value}
-              icon={card.icon}
-              color={card.color}
+        {/* Actions bar */}
+        <div className="flex flex-wrap gap-3 mb-6 items-center">
+          <button
+            onClick={() => navigate('/users/new')}
+            className="flex items-center gap-2 bg-accent text-white px-4 py-2.5 rounded-lg font-semibold text-sm hover:bg-accent/90"
+          >
+            <UserPlus size={16} /> Create New User
+          </button>
+          <button
+            onClick={() => navigate('/admin/access-log')}
+            className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2.5 rounded-lg font-medium text-sm hover:bg-gray-50"
+          >
+            <ShieldCheck size={16} /> View Access Log
+          </button>
+
+          <div className="flex-1" />
+
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by name or email…"
+              className="pl-9 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent w-64"
             />
-          ))}
-        </div>
+          </div>
 
-        <div className="mb-8 flex flex-wrap gap-3">
-          {currentRole === ROLES.ADMIN && (
+          {roleFilter && (
             <button
-              onClick={() => navigate('/admin/access-log')}
-              className="px-4 py-2 rounded-lg bg-amber-500 text-white text-sm font-medium hover:bg-amber-600 transition-colors"
+              onClick={() => setRoleFilter('')}
+              className="text-xs text-accent hover:underline"
             >
-              Open Access Log
-            </button>
-          )}
-          {currentRole === ROLES.AUDITOR && (
-            <button
-              onClick={() => navigate('/admin/access-log')}
-              className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
-            >
-              Review Access Activity
+              Clear filter
             </button>
           )}
         </div>
 
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {/* Recent Cases Table - 2/3 width */}
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-primary">Recent Cases</h2>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Reference Number</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Fraud Type</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Evidence</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Assigned To</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Last Updated</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {displayCases?.slice(0, 8).map((caseItem) => (
-                      <tr
-                        key={caseItem.id}
-                        className="border-b border-gray-200 hover:bg-accent/5 cursor-pointer transition-colors"
-                        onClick={() => navigate(`/cases/${caseItem.id}`)}
-                      >
-                        <td className="px-6 py-4 text-sm font-mono font-semibold text-primary">
-                          {caseItem.case_number || caseItem.caseNumber || caseItem.id.substring(0, 8)}
+        {/* Users table */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+              <Users size={18} className="text-gray-500" />
+              System Users
+              <span className="text-sm font-normal text-gray-400">({filtered.length})</span>
+            </h2>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">User</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Email</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Role</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Created</th>
+                  <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={5} className="py-16 text-center">
+                      <Spinner />
+                    </td>
+                  </tr>
+                ) : filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-16 text-center text-sm text-gray-400">
+                      {searchTerm || roleFilter ? 'No users match the current filters.' : 'No users found.'}
+                    </td>
+                  </tr>
+                ) : (
+                  filtered.map((u) => {
+                    const name = u.full_name || u.name || u.email || 'Unknown'
+                    const role = (u.role || 'UNKNOWN').toUpperCase()
+                    const avatarStyle = ROLE_STYLES[role] || ROLE_STYLES.AUDITOR
+                    const isSelf = u.id === user?.id
+
+                    return (
+                      <tr key={u.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className={`h-9 w-9 rounded-full flex items-center justify-center text-xs font-bold ${avatarStyle.bg}`}>
+                              {getInitials(name)}
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-gray-900">{name}</p>
+                              {isSelf && (
+                                <span className="text-[10px] text-gray-400 font-medium">(You)</span>
+                              )}
+                            </div>
+                          </div>
                         </td>
-                        <td className="px-6 py-4 text-sm">
-                          <FraudTypeBadge type={caseItem.fraudType || 'Unknown'} />
-                        </td>
-                        <td className="px-6 py-4 text-sm">
-                          <StatusBadge status={caseItem.status || 'ACTIVE'} />
-                        </td>
-                        <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                          {caseItem.evidenceCount || 0}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">
-                          {caseItem.assignedTo || caseItem.investigator || 'Unassigned'}
+                        <td className="px-6 py-4 text-sm text-gray-600">{u.email || '—'}</td>
+                        <td className="px-6 py-4">
+                          <RoleBadge role={role} />
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-500">
-                          {caseItem.updatedAt || caseItem.createdAt ? 
-                            format(new Date(caseItem.updatedAt || caseItem.createdAt), 'MMM dd, yyyy')
-                            : 'N/A'
-                          }
+                          {u.created_at
+                            ? new Date(u.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                            : '—'}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2 justify-end">
+                            <button
+                              type="button"
+                              onClick={() => { setPromoteTarget(u); setNewRole(role) }}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors"
+                              title="Change role"
+                            >
+                              <ArrowUpDown size={12} /> Role
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTarget(u)}
+                              disabled={isSelf}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                              title={isSelf ? 'Cannot delete yourself' : 'Delete user'}
+                            >
+                              <Trash2 size={12} /> Delete
+                            </button>
+                          </div>
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {(!displayCases || displayCases.length === 0) && (
-                <div className="p-8 text-center text-gray-500">
-                  <p>No cases found.</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Chain Integrity Alerts - 1/3 width */}
-          <div>
-            <div className="bg-white rounded-xl shadow-sm border border-red-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-red-200 bg-red-50">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle size={20} className="text-red-600" />
-                  <h2 className="font-semibold text-red-900">Chain Integrity Alerts</h2>
-                </div>
-              </div>
-
-              {tamperedEvidence.length > 0 ? (
-                <div className="divide-y divide-gray-200 max-h-96 overflow-y-auto">
-                  {tamperedEvidence.map((evidence, idx) => (
-                    <div key={`${evidence.caseId}-${idx}`} className="p-4 hover:bg-red-50 transition-colors">
-                      <div className="flex items-start gap-3">
-                        <div className="flex-shrink-0 mt-1">
-                          <div className="flex items-center justify-center h-6 w-6 rounded-full bg-red-200">
-                            <AlertTriangle size={14} className="text-red-700" />
-                          </div>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-900">
-                            Case {evidence.caseNo}
-                          </p>
-                          <p className="text-xs text-gray-600 mt-1">
-                            Evidence ID: <span className="font-mono">{evidence.id.substring(0, 8)}</span>
-                          </p>
-                          <p className="text-xs text-red-700 font-medium mt-1">
-                            Hash Mismatch Detected
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {evidence.flaggedDate ? 
-                              format(new Date(evidence.flaggedDate), 'MMM dd, yyyy HH:mm')
-                              : format(new Date(), 'MMM dd, yyyy HH:mm')
-                            }
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-8 text-center">
-                  <div className="flex justify-center mb-3">
-                    <CheckCircle2 size={24} className="text-green-600" />
-                  </div>
-                  <p className="text-sm font-medium text-gray-900">All Systems Secure</p>
-                  <p className="text-xs text-gray-500 mt-1">No integrity issues detected</p>
-                </div>
-              )}
-            </div>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
 
-        {/* Recent Activity Feed */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-primary">Recent Activity</h2>
-          </div>
-
-          {recentActivity.length > 0 ? (
-            <div className="divide-y divide-gray-200">
-              {recentActivity.map((activity, idx) => (
-                <div key={`${activity.caseId}-${idx}`} className="px-6 py-4 hover:bg-accent/5 transition-colors">
-                  <div className="flex items-start gap-4">
-                    {/* Icon */}
-                    <div className="flex-shrink-0 mt-1">
-                      <div className="flex items-center justify-center h-8 w-8 rounded-full bg-accent bg-opacity-10">
-                        <ArrowRight size={16} className="text-accent" />
-                      </div>
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-baseline gap-2">
-                        <p className="text-sm font-semibold text-gray-900">
-                          {activity.officer || 'System'}
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          {activity.action || 'Updated'}
-                        </p>
-                      </div>
-
-                      <div className="mt-1 flex items-center gap-2 text-xs text-gray-500">
-                        <span className="font-mono">
-                          Evidence: {activity.evidenceId?.substring(0, 8) || 'N/A'}
-                        </span>
-                        <span>•</span>
-                        <span>
-                          Case {activity.caseNo}
-                        </span>
-                      </div>
-
-                      <p className="text-xs text-gray-400 mt-2">
-                        {activity.timestamp ? 
-                          formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })
-                          : 'Recently'
-                        }
-                      </p>
-                    </div>
-
-                    {/* Arrow */}
-                    <div className="flex-shrink-0">
-                      <button
-                        onClick={() => navigate(`/cases/${activity.caseId}`)}
-                        className="text-accent hover:text-accent/80 transition-colors"
-                      >
-                        <ArrowRight size={16} />
-                      </button>
-                    </div>
-                  </div>
+        {/* Delete confirmation modal */}
+        {deleteTarget && (
+          <Modal onClose={() => { setDeleteTarget(null); deleteMutation.reset() }}>
+            <div className="p-6 max-w-md">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="bg-red-100 p-2.5 rounded-xl">
+                  <Trash2 size={20} className="text-red-600" />
                 </div>
-              ))}
+                <h3 className="text-lg font-bold text-gray-900">Delete User</h3>
+              </div>
+              <p className="text-sm text-gray-600 mb-1">
+                Are you sure you want to delete <strong>{deleteTarget.full_name || deleteTarget.name || deleteTarget.email}</strong>?
+              </p>
+              <p className="text-xs text-gray-400 mb-5">
+                This action cannot be undone. The user will lose all access to the system.
+              </p>
+
+              {deleteMutation.isError && (
+                <div className="mb-4 flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">
+                  <AlertCircle size={14} />
+                  {deleteMutation.error?.message || 'Failed to delete user'}
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => deleteMutation.mutate(deleteTarget.id)}
+                  disabled={deleteMutation.isPending}
+                  className="flex-1 bg-red-600 text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {deleteMutation.isPending ? <Spinner size="sm" /> : <Trash2 size={14} />}
+                  Delete User
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setDeleteTarget(null); deleteMutation.reset() }}
+                  className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-lg font-medium text-sm hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
-          ) : (
-            <div className="p-8 text-center text-gray-500">
-              <p>No activity recorded yet.</p>
+          </Modal>
+        )}
+
+        {/* Change role modal */}
+        {promoteTarget && (
+          <Modal onClose={() => { setPromoteTarget(null); setNewRole(''); promoteMutation.reset() }}>
+            <div className="p-6 max-w-md">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="bg-blue-100 p-2.5 rounded-xl">
+                  <ArrowUpDown size={20} className="text-blue-600" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900">Change Role</h3>
+              </div>
+              <p className="text-sm text-gray-600 mb-4">
+                Update the role for <strong>{promoteTarget.full_name || promoteTarget.name || promoteTarget.email}</strong>
+              </p>
+
+              <div className="space-y-2 mb-5">
+                {ROLE_OPTIONS.map((role) => {
+                  const style = ROLE_STYLES[role]
+                  const isCurrentRole = (promoteTarget.role || '').toUpperCase() === role
+                  return (
+                    <button
+                      key={role}
+                      type="button"
+                      onClick={() => setNewRole(role)}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-all ${
+                        newRole === role
+                          ? 'ring-2 ring-accent border-accent bg-accent/5'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <span className={`h-3 w-3 rounded-full ${style.dot}`} />
+                      <span className="text-sm font-semibold text-gray-900">{role}</span>
+                      {isCurrentRole && (
+                        <span className="ml-auto text-[10px] text-gray-400 font-medium">Current</span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+
+              {promoteMutation.isSuccess && (
+                <div className="mb-4 flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 px-3 py-2 rounded-lg text-sm">
+                  <CheckCircle2 size={14} /> Role updated successfully
+                </div>
+              )}
+              {promoteMutation.isError && (
+                <div className="mb-4 flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">
+                  <AlertCircle size={14} />
+                  {promoteMutation.error?.message || 'Failed to update role'}
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => promoteMutation.mutate({ userId: promoteTarget.id, role: newRole })}
+                  disabled={promoteMutation.isPending || newRole === (promoteTarget.role || '').toUpperCase()}
+                  className="flex-1 bg-accent text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-accent/90 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {promoteMutation.isPending ? <Spinner size="sm" /> : <ArrowUpDown size={14} />}
+                  Update Role
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setPromoteTarget(null); setNewRole(''); promoteMutation.reset() }}
+                  className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-lg font-medium text-sm hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
-          )}
-        </div>
+          </Modal>
+        )}
       </div>
     </Layout>
   )

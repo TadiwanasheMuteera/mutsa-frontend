@@ -90,36 +90,12 @@ function AppContent() {
       <Route path="/home" element={<RoleHome />} />
       <Route path="/"     element={<RoleHome />} />
 
-      {/* ── ADMIN-only routes ─────────────────────────────────────── */}
+      {/* ── ADMIN-only routes (user management + system monitoring) ── */}
       <Route
         path="/dashboard"
         element={
           <ProtectedRoute allowedRoles={['ADMIN']}>
             <DashboardPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/evidence"
-        element={
-          <ProtectedRoute allowedRoles={['ADMIN']}>
-            <EvidencePage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/evidence/new"
-        element={
-          <ProtectedRoute allowedRoles={['ADMIN']}>
-            <NewEvidencePage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/evidence/:evidenceId"
-        element={
-          <ProtectedRoute allowedRoles={['ADMIN']}>
-            <EvidenceDetailPage />
           </ProtectedRoute>
         }
       />
@@ -131,8 +107,6 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
-
-      {/* ── ADMIN — user management ──────────────────────────────── */}
       <Route
         path="/users/new"
         element={
@@ -152,7 +126,7 @@ function AppContent() {
         }
       />
 
-      {/* ── INVESTIGATOR routes ───────────────────────────────────── */}
+      {/* ── INVESTIGATOR routes (cases + evidence operations) ────── */}
       <Route
         path="/investigator"
         element={
@@ -162,9 +136,33 @@ function AppContent() {
         }
       />
       <Route
+        path="/evidence"
+        element={
+          <ProtectedRoute allowedRoles={['INVESTIGATOR']}>
+            <EvidencePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/evidence/new"
+        element={
+          <ProtectedRoute allowedRoles={['INVESTIGATOR']}>
+            <NewEvidencePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/evidence/:evidenceId"
+        element={
+          <ProtectedRoute allowedRoles={['INVESTIGATOR']}>
+            <EvidenceDetailPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/cases"
         element={
-          <ProtectedRoute allowedRoles={['ADMIN','INVESTIGATOR','AUTHORIZER']}>
+          <ProtectedRoute allowedRoles={['INVESTIGATOR','AUTHORIZER']}>
             <CasesPage />
           </ProtectedRoute>
         }
@@ -172,7 +170,7 @@ function AppContent() {
       <Route
         path="/cases/new"
         element={
-          <ProtectedRoute allowedRoles={['ADMIN','INVESTIGATOR']}>
+          <ProtectedRoute allowedRoles={['INVESTIGATOR']}>
             <NewCasePage />
           </ProtectedRoute>
         }
@@ -180,7 +178,7 @@ function AppContent() {
       <Route
         path="/cases/:caseId"
         element={
-          <ProtectedRoute allowedRoles={['ADMIN','INVESTIGATOR','AUTHORIZER']}>
+          <ProtectedRoute allowedRoles={['INVESTIGATOR','AUTHORIZER']}>
             <CaseDetailPage />
           </ProtectedRoute>
         }

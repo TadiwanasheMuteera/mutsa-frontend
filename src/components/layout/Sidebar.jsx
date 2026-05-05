@@ -13,24 +13,21 @@ import {
 import { useAuthStore } from '../../store/authStore'
 import { isAdmin, isAuditor, isInvestigator, isAuthorizer } from '../../utils/rbac'
 
-// Nav items for ADMIN — full operational access + user management
+// Nav items for ADMIN — user management + system monitoring only
 const ADMIN_MENU = [
-  { path: '/dashboard',      icon: LayoutDashboard, label: 'Dashboard'       },
-  { path: '/cases',          icon: FileText,         label: 'Cases'           },
-  { path: '/evidence',       icon: Package,          label: 'Evidence'        },
-  { path: '/custody',        icon: Link2,            label: 'Custody Records' },
-  { path: '/verify',         icon: Search,           label: 'Hash Verification'},
-  { path: '/users/new',      icon: UserPlus,         label: 'Create User'     },
-  { path: '/admin/access-log', icon: ShieldCheck,    label: 'Access Log', highlight: true },
+  { path: '/dashboard',        icon: LayoutDashboard, label: 'User Management' },
+  { path: '/users/new',        icon: UserPlus,         label: 'Create User'     },
+  { path: '/admin/access-log', icon: ShieldCheck,      label: 'Access Log', highlight: true },
 ]
 
-// Nav items for INVESTIGATOR — case creation and evidence
+// Nav items for INVESTIGATOR — case creation, evidence management, custody
 const INVESTIGATOR_MENU = [
-  { path: '/investigator',   icon: LayoutDashboard, label: 'Dashboard'        },
-  { path: '/cases',          icon: FileText,         label: 'My Cases'         },
-  { path: '/cases/new',      icon: FileText,         label: 'New Case'         },
-  { path: '/custody',        icon: Link2,            label: 'Custody Records'  },
-  { path: '/verify',         icon: Search,           label: 'Hash Verification'},
+  { path: '/investigator',   icon: LayoutDashboard, label: 'Dashboard'         },
+  { path: '/cases',          icon: FileText,         label: 'My Cases'          },
+  { path: '/cases/new',      icon: FileText,         label: 'New Case'          },
+  { path: '/evidence',       icon: Package,          label: 'Evidence'          },
+  { path: '/custody',        icon: Link2,            label: 'Custody Records'   },
+  { path: '/verify',         icon: Search,           label: 'Hash Verification' },
 ]
 
 // Nav items for AUTHORIZER — approve/reject pending cases

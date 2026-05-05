@@ -25,4 +25,5 @@ export const isInvestigator = (user) => hasRole(user, [ROLES.INVESTIGATOR])
 export const isAuthorizer   = (user) => hasRole(user, [ROLES.AUTHORIZER])
 
 export const canAuditLogs   = (user) => hasRole(user, [ROLES.ADMIN, ROLES.AUDITOR])
-export const canManageCases = (user) => hasRole(user, [ROLES.ADMIN, ROLES.INVESTIGATOR, ROLES.AUTHORIZER])
+export const canManageUsers = (user) => hasRole(user, [ROLES.ADMIN])
+export const canManageCases = (user) => hasRole(user, [ROLES.INVESTIGATOR, ROLES.AUTHORIZER])

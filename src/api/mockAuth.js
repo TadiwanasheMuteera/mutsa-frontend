@@ -41,8 +41,8 @@ export const ROLE_CARDS = [
     color:    'purple',
     bg:       'bg-purple-50 border-purple-200 hover:border-purple-400',
     badge:    'bg-purple-100 text-purple-800',
-    desc:     'Full system access. Creates users, views all cases, manages evidence, and monitors access logs.',
-    can:      ['Create & manage users', 'View all cases & evidence', 'Access audit logs', 'Full admin controls'],
+    desc:     'System administrator. Creates users, deletes users, promotes roles, and monitors access logs.',
+    can:      ['Create & manage users', 'Delete users', 'Change user roles', 'Monitor access logs'],
   },
   {
     role:     'INVESTIGATOR',
