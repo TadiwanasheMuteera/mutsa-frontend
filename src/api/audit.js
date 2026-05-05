@@ -1,15 +1,27 @@
 import axiosInstance from './axios'
 
 /**
- * Audit API — used exclusively by the AUDITOR role.
+ * Audit API — used by the AUDITOR role.
  *
  * Backend endpoints (Flask):
- *   GET  /api/audit/logs          — paginated flat list of all audit events
- *   GET  /api/audit/stats         — summary stats (actions today, active users, etc.)
- *   GET  /api/audit/logs/export   — CSV download of audit events
+ *   GET  /api/audit/logs          — paginated list of ALL system activity
+ *   GET  /api/audit/stats         — summary stats for dashboard cards
+ *   GET  /api/audit/logs/export   — CSV download
  *
- * These endpoints must be accessible to users with role AUDITOR (or ADMIN).
- * They are separate from /api/admin/evidence-access-log which is ADMIN-only.
+ * Every action in the system must be logged by the backend:
+ *   - CASE_CREATED, CASE_APPROVED, CASE_REJECTED, CASE_UPDATED, CASE_VIEWED
+ *   - EVIDENCE_ADDED, EVIDENCE_VIEWED, DOWNLOADED, HASH_VERIFIED
+ *   - TRANSFERRED, STATUS_CHANGED
+ *   - LOGIN, LOGOUT
+ *   - USER_CREATED, USER_DELETED, ROLE_CHANGED
+ *
+ * Each log entry must include:
+ *   - user_name, user_role   (who performed the action)
+ *   - action                 (what they did)
+ *   - case_number            (which case, if applicable)
+ *   - evidence_ref           (which evidence, if applicable)
+ *   - details / reason       (why — e.g. rejection reason)
+ *   - timestamp              (ISO 8601 — when it happened)
  */
 
 const AUDIT_BASE = '/audit'
@@ -17,23 +29,15 @@ const AUDIT_BASE = '/audit'
 export const auditAPI = {
   /**
    * GET /api/audit/logs
-   * Returns paginated audit log entries visible to the auditor.
    * Query params: page, per_page, action, user_id, date_from, date_to
    *
-   * Expected response shape:
+   * Expected response:
    * {
    *   success: true,
    *   data: {
-   *     logs: [
-   *       {
-   *         id, user_id, user_name, user_role, action,
-   *         evidence_ref, case_number, hash_at_time,
-   *         hash_status,   // "OK" | "TAMPERED" | "MISMATCH"
-   *         timestamp,     // ISO 8601 string e.g. "2026-04-30T14:35:22Z"
-   *         created_at
-   *       },
-   *       ...
-   *     ],
+   *     logs: [ { id, user_name, user_role, action, case_number,
+   *               evidence_ref, details, timestamp, hash_at_time,
+   *               hash_status } ],
    *     total: 150,
    *     page: 1,
    *     per_page: 50
@@ -43,15 +47,13 @@ export const auditAPI = {
   getLogs: async (params = {}) => {
     const response = await axiosInstance.get(`${AUDIT_BASE}/logs`, { params })
     const { success, data, message } = response.data
-    if (!success) throw { response: { data: { message } } }
+    if (!success) throw new Error(message || 'Failed to fetch audit logs')
     return data || {}
   },
 
   /**
    * GET /api/audit/stats
-   * Returns summary statistics for the audit dashboard cards.
-   *
-   * Expected response shape:
+   * Expected response:
    * {
    *   success: true,
    *   data: {
@@ -65,13 +67,12 @@ export const auditAPI = {
   getStats: async () => {
     const response = await axiosInstance.get(`${AUDIT_BASE}/stats`)
     const { success, data, message } = response.data
-    if (!success) throw { response: { data: { message } } }
+    if (!success) throw new Error(message || 'Failed to fetch audit stats')
     return data || {}
   },
 
   /**
-   * GET /api/audit/logs/export
-   * Triggers a CSV download of the current filtered audit log.
+   * GET /api/audit/logs/export — triggers CSV download.
    */
   exportLogs: async (params = {}) => {
     const response = await axiosInstance.get(`${AUDIT_BASE}/logs/export`, {
