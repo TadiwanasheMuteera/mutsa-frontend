@@ -6,9 +6,12 @@ import Spinner from '../components/ui/Spinner'
 import Modal from '../components/ui/Modal'
 import { useAuthStore } from '../store/authStore'
 import { usersAPI } from '../api/users'
+import { casesAPI } from '../api/cases'
+import { adminAPI } from '../api/admin'
 import {
   Users, UserPlus, ShieldCheck, Trash2, ArrowUpDown,
   AlertCircle, CheckCircle2, Search, WifiOff,
+  FolderOpen, Activity, FileText,
 } from 'lucide-react'
 
 const ROLE_OPTIONS = ['ADMIN', 'INVESTIGATOR', 'AUTHORIZER', 'AUDITOR']
@@ -35,6 +38,33 @@ function getInitials(name) {
   return name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() || '').join('') || 'U'
 }
 
+function caseStatsFromList(cases) {
+  const list = cases || []
+  const st = (c) => String(c?.status || '').toUpperCase()
+  return {
+    total: list.length,
+    open: list.filter((c) => ['OPEN', 'ACTIVE'].includes(st(c))).length,
+    pending: list.filter((c) =>
+      ['PENDING_APPROVAL', 'PENDING', 'AWAITING_APPROVAL'].includes(st(c))
+    ).length,
+    underInvestigation: list.filter((c) => st(c) === 'UNDER_INVESTIGATION').length,
+    closed: list.filter((c) => ['CLOSED', 'RESOLVED', 'ARCHIVED'].includes(st(c))).length,
+  }
+}
+
+function getAdminLogRows(payload) {
+  if (Array.isArray(payload)) return payload
+  if (!payload || typeof payload !== 'object') return []
+  if (Array.isArray(payload.data)) return payload.data
+  const rows =
+    payload.logs ||
+    payload.access_log ||
+    payload.items ||
+    payload.results ||
+    []
+  return Array.isArray(rows) ? rows : []
+}
+
 export default function DashboardPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -52,7 +82,30 @@ export default function DashboardPage() {
     retry: 1,
   })
 
+  const { data: casesPayload } = useQuery({
+    queryKey: ['admin-cases-overview'],
+    queryFn: async () => {
+      const res = await casesAPI.getCases()
+      return res.cases || []
+    },
+    retry: 1,
+  })
+
+  const { data: recentAccessPayload } = useQuery({
+    queryKey: ['admin-recent-access'],
+    queryFn: () => adminAPI.getAccessLog({ page: 1, per_page: 10 }),
+    retry: 1,
+  })
+
   const allUsers = usersData?.users || usersData?.data || (Array.isArray(usersData) ? usersData : [])
+  const allCases = casesPayload || []
+  const caseStats = caseStatsFromList(allCases)
+  const recentAccess = getAdminLogRows(recentAccessPayload).slice(0, 10)
+  const recentSignups = [...allUsers]
+    .filter((u) => u?.created_at)
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 5)
+  const activeUsersCount = allUsers.filter((u) => u?.is_active !== false).length
   const usingMock = allUsers.length > 0 && allUsers[0]?.id?.startsWith?.('u-')
 
   const deleteMutation = useMutation({
@@ -108,6 +161,101 @@ export default function DashboardPage() {
             </span>
           </div>
         )}
+
+        {/* System overview — cases + active users */}
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 mb-6">
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+              <FolderOpen size={14} className="text-gray-400" /> Total cases
+            </p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">{caseStats.total}</p>
+          </div>
+          <div className="bg-white rounded-xl border border-green-100 p-4">
+            <p className="text-xs font-semibold text-green-700 uppercase tracking-wider">Open</p>
+            <p className="text-2xl font-bold text-green-800 mt-1">{caseStats.open}</p>
+          </div>
+          <div className="bg-white rounded-xl border border-amber-100 p-4">
+            <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider">Pending approval</p>
+            <p className="text-2xl font-bold text-amber-800 mt-1">{caseStats.pending}</p>
+          </div>
+          <div className="bg-white rounded-xl border border-blue-100 p-4">
+            <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider">Under investigation</p>
+            <p className="text-2xl font-bold text-blue-800 mt-1">{caseStats.underInvestigation}</p>
+          </div>
+          <div className="bg-white rounded-xl border border-slate-100 p-4">
+            <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Closed / resolved</p>
+            <p className="text-2xl font-bold text-slate-800 mt-1">{caseStats.closed}</p>
+          </div>
+          <div className="bg-white rounded-xl border border-purple-100 p-4">
+            <p className="text-xs font-semibold text-purple-700 uppercase tracking-wider flex items-center gap-1">
+              <Users size={14} /> Active users
+            </p>
+            <p className="text-2xl font-bold text-purple-900 mt-1">{activeUsersCount}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+              <Activity size={16} className="text-accent" /> Recent evidence access
+            </h3>
+            {recentAccess.length === 0 ? (
+              <p className="text-xs text-gray-400">No access log entries yet, or log endpoint unavailable.</p>
+            ) : (
+              <ul className="space-y-2 text-sm">
+                {recentAccess.map((row, i) => (
+                  <li key={row.id || i} className="flex flex-col border-b border-gray-100 last:border-0 pb-2 last:pb-0">
+                    <span className="text-xs font-semibold text-gray-900">
+                      {row.action || '—'}{' '}
+                      <span className="font-normal text-gray-500">
+                        · {row.user_name || row.user?.full_name || '—'}
+                      </span>
+                    </span>
+                    <span className="text-[11px] text-gray-500 line-clamp-2">
+                      {row.details || row.case_number || row.evidence_ref || '—'}
+                    </span>
+                    <span className="text-[10px] text-gray-400">
+                      {row.timestamp || row.created_at
+                        ? new Date(row.timestamp || row.created_at).toLocaleString()
+                        : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+              <FileText size={16} className="text-accent" /> Recent users
+            </h3>
+            {recentSignups.length === 0 ? (
+              <p className="text-xs text-gray-400">No user creation dates available.</p>
+            ) : (
+              <ul className="space-y-2 text-sm">
+                {recentSignups.map((u) => (
+                  <li key={u.id} className="flex justify-between gap-2 border-b border-gray-100 last:border-0 pb-2 last:pb-0">
+                    <div>
+                      <p className="font-medium text-gray-900">{u.full_name || u.name || u.email}</p>
+                      <p className="text-xs text-gray-500">{u.email}</p>
+                    </div>
+                    <div className="text-right text-xs text-gray-500">
+                      <RoleBadge role={(u.role || 'AUDITOR').toUpperCase()} />
+                      <p className="mt-1">
+                        {u.created_at
+                          ? new Date(u.created_at).toLocaleDateString('en-GB', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                            })
+                          : '—'}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
 
         {/* Role stat cards */}
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
@@ -184,23 +332,30 @@ export default function DashboardPage() {
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">User</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Email</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Role</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Created</th>
-                  <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
+                    Emp #
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">User</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Email</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider hidden lg:table-cell">
+                    Phone
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Role</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Created</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={5} className="py-16 text-center">
+                    <td colSpan={8} className="py-16 text-center">
                       <Spinner />
                     </td>
                   </tr>
                 ) : filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-16 text-center text-sm text-gray-400">
+                    <td colSpan={8} className="py-16 text-center text-sm text-gray-400">
                       {searchTerm || roleFilter ? 'No users match the current filters.' : 'No users found.'}
                     </td>
                   </tr>
@@ -210,10 +365,14 @@ export default function DashboardPage() {
                     const role = (u.role || 'UNKNOWN').toUpperCase()
                     const avatarStyle = ROLE_STYLES[role] || ROLE_STYLES.AUDITOR
                     const isSelf = u.id === user?.id
+                    const isActive = u.is_active !== false && u.isActive !== false
 
                     return (
                       <tr key={u.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4">
+                        <td className="px-4 py-4 text-sm font-mono text-gray-700 whitespace-nowrap">
+                          {u.employee_number || u.employeeNumber || '—'}
+                        </td>
+                        <td className="px-4 py-4">
                           <div className="flex items-center gap-3">
                             <div className={`h-9 w-9 rounded-full flex items-center justify-center text-xs font-bold ${avatarStyle.bg}`}>
                               {getInitials(name)}
@@ -226,16 +385,30 @@ export default function DashboardPage() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{u.email || '—'}</td>
-                        <td className="px-6 py-4">
+                        <td className="px-4 py-4 text-sm text-gray-600">{u.email || '—'}</td>
+                        <td className="px-4 py-4 text-sm text-gray-600 hidden lg:table-cell">
+                          {u.phone || u.mobile || '—'}
+                        </td>
+                        <td className="px-4 py-4">
                           <RoleBadge role={role} />
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-500">
+                        <td className="px-4 py-4">
+                          <span
+                            className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                              isActive
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-gray-200 text-gray-600'
+                            }`}
+                          >
+                            {isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 text-sm text-gray-500 whitespace-nowrap">
                           {u.created_at
                             ? new Date(u.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
                             : '—'}
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-4 py-4">
                           <div className="flex items-center gap-2 justify-end">
                             <button
                               type="button"

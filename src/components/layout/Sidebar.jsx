@@ -40,9 +40,10 @@ const AUTHORIZER_MENU = [
 
 // Nav items for AUDITOR — read-only audit access only
 const AUDITOR_MENU = [
-  { path: '/audit',       icon: ClipboardList,   label: 'Audit Monitor'   },
-  { path: '/custody',     icon: Link2,           label: 'Chain of Custody'},
-  { path: '/verify',      icon: Search,          label: 'Hash Verification'},
+  { path: '/audit',           icon: ClipboardList, label: 'Audit Monitor'     },
+  { path: '/audit/evidence',  icon: FileText,      label: 'Evidence integrity' },
+  { path: '/custody',         icon: Link2,         label: 'Chain of Custody'  },
+  { path: '/verify',          icon: Search,        label: 'Hash Verification' },
 ]
 
 function NavLink({ path, icon: Icon, label, isActive, highlight }) {
@@ -81,9 +82,13 @@ export default function Sidebar() {
   const location = useLocation()
   const { user } = useAuthStore()
 
-  const isActive = (path) => location.pathname.startsWith(path) && path !== '/dashboard'
-    ? true
-    : location.pathname === path
+  const isActive = (path) => {
+    if (path === '/audit') {
+      return location.pathname === '/audit' || location.pathname === '/audit/'
+    }
+    if (path !== '/dashboard' && location.pathname.startsWith(path)) return true
+    return location.pathname === path
+  }
 
   const menuItems =
     isAdmin(user)        ? ADMIN_MENU        :

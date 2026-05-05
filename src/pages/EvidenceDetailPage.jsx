@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { useMemo } from 'react'
 import { format } from 'date-fns'
 import Layout from '../components/layout/Layout'
 import Spinner from '../components/ui/Spinner'
@@ -10,6 +11,15 @@ import {
   getEvidenceStatus,
   formatEvidenceTypeLabel,
 } from '../utils/evidenceDisplay'
+import {
+  extractCustodyRecordsFromEvidence,
+  sortCustodyRecordsChronological,
+  getCustodyFromOfficer,
+  getCustodyToOfficer,
+  getCustodyRecordedBy,
+  getCustodyActionLabel,
+  formatCustodyTimestamp,
+} from '../utils/custodyDisplay'
 import { ArrowLeft, AlertCircle } from 'lucide-react'
 
 export default function EvidenceDetailPage() {
@@ -21,6 +31,22 @@ export default function EvidenceDetailPage() {
     queryFn: () => evidenceAPI.getEvidenceById(evidenceId),
     enabled: !!evidenceId,
   })
+
+  const embeddedCustody = useMemo(
+    () => sortCustodyRecordsChronological(extractCustodyRecordsFromEvidence(evidence)),
+    [evidence]
+  )
+
+  const { data: chainFallback = [] } = useQuery({
+    queryKey: ['evidence-chain', evidenceId],
+    queryFn: () => evidenceAPI.getEvidenceChain(evidenceId),
+    enabled: Boolean(evidenceId && evidence && embeddedCustody.length === 0),
+  })
+
+  const custodyRows = useMemo(() => {
+    if (embeddedCustody.length) return embeddedCustody
+    return sortCustodyRecordsChronological(chainFallback)
+  }, [embeddedCustody, chainFallback])
 
   if (isLoading) {
     return (
@@ -189,6 +215,83 @@ export default function EvidenceDetailPage() {
             >
               Verify Integrity
             </button>
+          </div>
+        </div>
+
+        {/* Chain of custody */}
+        <div className="mt-8 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-primary">Custody records</h2>
+            <p className="text-sm text-gray-600 mt-1">
+              Chain of custody / transfer history for this evidence item
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            {custodyRows.length === 0 ? (
+              <p className="p-6 text-sm text-gray-500">No custody records yet.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      From
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      To
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Action
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Timestamp
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Location
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Recorded by
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Notes
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {custodyRows.map((row, idx) => (
+                    <tr
+                      key={row.id != null ? `custody-${row.id}` : `custody-${idx}`}
+                      className="border-b border-gray-100 last:border-0"
+                    >
+                      <td className="px-4 py-3 text-gray-800 align-top">
+                        {getCustodyFromOfficer(row)}
+                      </td>
+                      <td className="px-4 py-3 text-gray-800 align-top">
+                        {getCustodyToOfficer(row)}
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <Badge
+                          status={getCustodyActionLabel(row)}
+                          variant="evidence"
+                          className="text-xs px-2 py-0.5"
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-gray-700 align-top whitespace-nowrap">
+                        {formatCustodyTimestamp(row)}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 align-top max-w-[200px]">
+                        {row.location || '—'}
+                      </td>
+                      <td className="px-4 py-3 text-gray-800 align-top">
+                        {getCustodyRecordedBy(row)}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 align-top max-w-[240px]">
+                        {row.notes || row.description || '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       </div>

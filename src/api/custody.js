@@ -70,17 +70,33 @@ export const custodyAPI = {
       throw { response: { data: { message } } }
     }
 
-    // Handle multiple response format variations from backend
-    // Extract records from various possible keys
-    let records = data.custody_records || data.entries || data.items || data.timeline || []
+    const payload = data.custody_log && typeof data.custody_log === 'object' ? data.custody_log : data
+
+    let records =
+      payload.custody_records ||
+      payload.custody_history ||
+      payload.chain_of_custody ||
+      payload.entries ||
+      payload.items ||
+      payload.timeline ||
+      []
     if (!Array.isArray(records)) {
       records = []
     }
 
     return {
-      ...(data.custody_log || data),
+      ...payload,
       custody_records: records,
     }
+  },
+
+  /**
+   * Records-only list for one evidence item (used by case aggregate queries).
+   * Same shape as items in GET /evidence/evidence/:id → custody_history.
+   */
+  getCustodyByEvidenceId: async (evidenceId) => {
+    const log = await custodyAPI.getCustodyLog(evidenceId)
+    return log.custody_records || []
   },
 
   /**

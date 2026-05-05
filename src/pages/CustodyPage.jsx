@@ -5,8 +5,14 @@ import Badge from '../components/ui/Badge'
 import { casesAPI } from '../api/cases'
 import { evidenceAPI } from '../api/evidence'
 import { custodyAPI } from '../api/custody'
+import {
+  extractCustodyRecordsFromEvidence,
+  getCustodyActionLabel,
+  getCustodyActorSummary,
+  formatCustodyTimestamp,
+} from '../utils/custodyDisplay'
+import { getEvidenceItemName } from '../utils/evidenceDisplay'
 import { AlertCircle } from 'lucide-react'
-import { format } from 'date-fns'
 
 export default function CustodyPage() {
   const { data: custodyRecords = [], isLoading, error } = useQuery({
@@ -51,14 +57,17 @@ export default function CustodyPage() {
             custodyPromises.push(
               custodyAPI.getCustodyLog(evidence.id)
                 .then(custodyLog => {
-                  const records = custodyLog.custody_records || []
+                  let records = custodyLog.custody_records || []
+                  if (!records.length) {
+                    records = extractCustodyRecordsFromEvidence(evidence)
+                  }
                   console.log(`CustodyPage: Custody log for evidence ${evidence.id}:`, records.length, 'records')
                   return {
                     records,
                     caseId: caseItem.id,
                     caseTitle: caseItem.title,
                     evidenceId: evidence.id,
-                    evidenceName: evidence.description || evidence.name,
+                    evidenceName: getEvidenceItemName(evidence),
                   }
                 })
                 .catch(err => {
@@ -153,27 +162,22 @@ export default function CustodyPage() {
                 <tr>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Case</th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Evidence</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Action</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Officer</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Parties</th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Timestamp</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {recentRecords?.map((record, index) => (
-                  <tr key={`${record.caseId}-${index}`} className="border-b border-gray-200 hover:bg-accent/5 transition-colors">
+                  <tr key={`${record.caseId}-${record.evidenceId}-${record.id ?? index}`} className="border-b border-gray-200 hover:bg-accent/5 transition-colors">
                     <td className="px-6 py-4 text-sm text-gray-700 font-medium">{record.caseTitle}</td>
                     <td className="px-6 py-4 text-sm text-gray-600">{record.evidenceName || 'N/A'}</td>
-                    <td className="px-6 py-4 text-sm text-gray-700">{record.action || 'Transfer'}</td>
-                    <td className="px-6 py-4 text-sm text-gray-700">{record.officer || 'Unknown'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-700">{getCustodyActorSummary(record)}</td>
                     <td className="px-6 py-4 text-sm text-gray-600">
-                      {record.timestamp && !isNaN(new Date(record.timestamp).getTime()) 
-                        ? format(new Date(record.timestamp), 'MMM dd, yyyy HH:mm')
-                        : 'N/A'
-                      }
+                      {formatCustodyTimestamp(record)}
                     </td>
                     <td className="px-6 py-4 text-sm">
-                      <Badge status={record.status || 'ACTIVE'} />
+                      <Badge status={getCustodyActionLabel(record)} variant="evidence" />
                     </td>
                   </tr>
                 ))}

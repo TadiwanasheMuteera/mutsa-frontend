@@ -347,6 +347,37 @@ export default function AuthorizerPage() {
                           </span>
                         )}
                       </div>
+                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
+                        <span>
+                          Investigator:{' '}
+                          <strong className="text-gray-800">
+                            {c.assigned_user_name ||
+                              c.investigator_name ||
+                              c.assigned_to_name ||
+                              '—'}
+                          </strong>
+                        </span>
+                        {(c.evidence_count != null || c.evidenceCount != null) && (
+                          <span>
+                            Evidence items:{' '}
+                            <strong>{c.evidence_count ?? c.evidenceCount}</strong>
+                          </span>
+                        )}
+                        {(c.updated_at || c.updatedAt) && (
+                          <span>
+                            Updated:{' '}
+                            <strong className="text-gray-800 font-normal">
+                              {new Date(c.updated_at || c.updatedAt).toLocaleString('en-GB', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </strong>
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <button
                       onClick={() => navigate(`/cases/${c.id}`)}

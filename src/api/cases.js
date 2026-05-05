@@ -18,14 +18,16 @@ export const casesAPI = {
    * @returns {Promise<{cases: Array, total: number, page: number, per_page: number}>}
    */
   getCases: async (options = {}) => {
-    const { page, per_page, status, fraud_type } = options || {}
+    const { page, per_page, status, fraud_type, assigned_to, ...extra } = options || {}
     const params = {
       ...(page !== undefined ? { page } : {}),
       ...(per_page !== undefined ? { per_page } : {}),
       ...(status ? { status } : {}),
       ...(fraud_type ? { fraud_type } : {}),
+      ...(assigned_to ? { assigned_to } : {}),
+      ...extra,
     }
-    
+
     const requestConfig = Object.keys(params).length > 0 ? { params } : undefined
     const response = await axiosInstance.get('/cases', requestConfig)
     const { success, data, message } = response.data

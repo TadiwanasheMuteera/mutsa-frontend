@@ -21,10 +21,13 @@ export default function CasesPage() {
   }, [createdReferenceNumber, location.pathname, navigate])
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['cases'],
+    queryKey: ['cases', isInvestigator(user) ? user?.id : 'all'],
     queryFn: async () => {
-      const result = await casesAPI.getCases()
-      return result.cases || []
+      const result =
+        isInvestigator(user) && user?.id
+          ? await casesAPI.getCases({ assigned_to: user.id })
+          : await casesAPI.getCases()
+      return result.cases || result.data || []
     },
     refetchOnMount: true,
   })
@@ -155,24 +158,53 @@ export default function CasesPage() {
                 <tr>
                   <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Reference</th>
                   <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Title</th>
-                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">Description</th>
+                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden sm:table-cell">
+                    Fraud type
+                  </th>
+                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">
+                    Investigator
+                  </th>
                   <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">Evidence</th>
+                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden xl:table-cell">
+                    Updated
+                  </th>
                   <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filtered.map((c) => (
+                {filtered.map((c) => {
+                  const investigator =
+                    c.assigned_user_name ||
+                    c.investigator_name ||
+                    c.assigned_to_name ||
+                    '—'
+                  const fraudLabel = c.fraud_type ? String(c.fraud_type).replace(/_/g, ' ') : '—'
+                  const updated =
+                    c.updated_at || c.updatedAt
+                      ? new Date(c.updated_at || c.updatedAt).toLocaleDateString('en-GB', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                        })
+                      : '—'
+                  return (
                   <tr key={c.id} className="hover:bg-accent/5 transition-colors">
                     <td className="px-5 py-3.5 text-sm font-mono text-gray-700 whitespace-nowrap">
                       {c.case_number || c.caseNumber || c.id?.substring(0, 10)}
                     </td>
-                    <td className="px-5 py-3.5 text-sm font-medium text-gray-900">{c.title}</td>
-                    <td className="px-5 py-3.5 text-sm text-gray-500 max-w-xs truncate hidden md:table-cell">{c.description}</td>
+                    <td className="px-5 py-3.5 text-sm font-medium text-gray-900 max-w-[200px] truncate">
+                      {c.title}
+                    </td>
+                    <td className="px-5 py-3.5 text-sm text-gray-600 hidden sm:table-cell">{fraudLabel}</td>
+                    <td className="px-5 py-3.5 text-sm text-gray-600 hidden md:table-cell max-w-[140px] truncate">
+                      {investigator}
+                    </td>
                     <td className="px-5 py-3.5 text-sm">
                       <Badge status={c.status} />
                     </td>
-                    <td className="px-5 py-3.5 text-sm text-gray-600 hidden lg:table-cell">{c.evidenceCount ?? 0}</td>
+                    <td className="px-5 py-3.5 text-sm text-gray-600 hidden lg:table-cell">{c.evidenceCount ?? c.evidence_count ?? '—'}</td>
+                    <td className="px-5 py-3.5 text-sm text-gray-500 hidden xl:table-cell whitespace-nowrap">{updated}</td>
                     <td className="px-5 py-3.5 text-sm flex items-center gap-3">
                       <button
                         onClick={() => navigate(`/cases/${c.id}`)}
@@ -190,7 +222,7 @@ export default function CasesPage() {
                       )}
                     </td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
           </div>

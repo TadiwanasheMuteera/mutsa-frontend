@@ -104,6 +104,7 @@ function getMeta(action) {
 function extractRows(payload) {
   if (Array.isArray(payload)) return payload
   if (!payload || typeof payload !== 'object') return []
+  if (Array.isArray(payload.data)) return payload.data
   return payload.logs || payload.access_log || payload.items || payload.results || payload.entries || []
 }
 
@@ -205,6 +206,21 @@ export default function AuditorPage() {
   })
 
   const rawRows = extractRows(logData)
+
+  const insights = useMemo(() => {
+    const byRole = {}
+    const byAction = {}
+    rawRows.forEach((r) => {
+      const role = (r.user_role || r.user?.role || 'UNKNOWN').toUpperCase()
+      const act = (r.action || 'UNKNOWN').toUpperCase()
+      byRole[role] = (byRole[role] || 0) + 1
+      byAction[act] = (byAction[act] || 0) + 1
+    })
+    const topActions = Object.entries(byAction)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+    return { byRole, topActions, totalPage: rawRows.length }
+  }, [rawRows])
 
   const uniqueUsers = useMemo(() => {
     const map = new Map()
@@ -333,6 +349,36 @@ export default function AuditorPage() {
           )}
         </div>
 
+        {/* Activity breakdown (current page) */}
+        {rawRows.length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Events by role (this page)</p>
+              <div className="space-y-2">
+                {Object.entries(insights.byRole)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([role, n]) => (
+                    <div key={role} className="flex items-center justify-between text-sm">
+                      <span className="font-medium text-gray-800">{role}</span>
+                      <span className="text-gray-500">{n}</span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Top actions (this page)</p>
+              <div className="space-y-2">
+                {insights.topActions.map(([action, n]) => (
+                  <div key={action} className="flex items-center justify-between text-sm">
+                    <span className="font-mono text-xs text-gray-800">{action}</span>
+                    <span className="text-gray-500">{n}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Filters */}
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Filter activity</p>
@@ -409,13 +455,14 @@ export default function AuditorPage() {
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Case No.</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Evidence Ref</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Details</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Hash status</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Flag</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {logLoading ? (
                   <tr>
-                    <td colSpan={7} className="py-16 text-center">
+                    <td colSpan={8} className="py-16 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <Spinner />
                         <p className="text-sm text-gray-400">Loading audit trail from database…</p>
@@ -424,7 +471,7 @@ export default function AuditorPage() {
                   </tr>
                 ) : rawRows.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-16 text-center">
+                    <td colSpan={8} className="py-16 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <Activity size={32} className="text-gray-300" />
                         <p className="text-sm font-medium text-gray-500">No audit events recorded yet</p>
@@ -451,6 +498,10 @@ export default function AuditorPage() {
                     const details  = row.details || row.reason || row.description || row.notes || null
                     const hashVal  = row.hash_at_time || row.file_hash || row.hash || row.evidence?.file_hash || null
                     const mismatch = ['TAMPERED', 'MISMATCH'].includes(String(row.hash_status || row.integrity_status || '').toUpperCase())
+                    const hashStatus =
+                      row.hash_status ||
+                      row.integrity_status ||
+                      (mismatch ? 'MISMATCH' : hashVal ? 'OK' : null)
                     const rowId    = row.id || `r-${idx}`
                     const isFlagged = Boolean(flagged[rowId])
 
@@ -536,6 +587,24 @@ export default function AuditorPage() {
                         <td className="px-4 py-3 text-xs text-gray-600 max-w-xs">
                           {details ? (
                             <span className="line-clamp-2">{details}</span>
+                          ) : (
+                            <span className="text-gray-300">—</span>
+                          )}
+                        </td>
+
+                        <td className="px-4 py-3 text-xs font-semibold whitespace-nowrap">
+                          {hashStatus ? (
+                            <span
+                              className={
+                                String(hashStatus).toUpperCase() === 'OK'
+                                  ? 'text-green-700'
+                                  : ['TAMPERED', 'MISMATCH', 'FAIL'].includes(String(hashStatus).toUpperCase())
+                                    ? 'text-red-700'
+                                    : 'text-gray-700'
+                              }
+                            >
+                              {hashStatus}
+                            </span>
                           ) : (
                             <span className="text-gray-300">—</span>
                           )}

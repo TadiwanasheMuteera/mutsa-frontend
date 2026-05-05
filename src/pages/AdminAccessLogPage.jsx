@@ -32,24 +32,11 @@ function StatCardSkeleton() {
 function TableRowSkeleton() {
   return (
     <tr className="border-b border-gray-200">
-      <td className="px-4 py-4">
-        <div className="h-9 w-44 bg-gray-200 rounded animate-pulse" />
-      </td>
-      <td className="px-4 py-4">
-        <div className="h-6 w-28 bg-gray-200 rounded-full animate-pulse" />
-      </td>
-      <td className="px-4 py-4">
-        <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
-      </td>
-      <td className="px-4 py-4">
-        <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
-      </td>
-      <td className="px-4 py-4">
-        <div className="h-4 w-36 bg-gray-200 rounded animate-pulse" />
-      </td>
-      <td className="px-4 py-4">
-        <div className="h-4 w-32 bg-gray-200 rounded animate-pulse" />
-      </td>
+      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
+        <td key={i} className="px-4 py-4">
+          <div className="h-4 w-full max-w-[120px] bg-gray-200 rounded animate-pulse" />
+        </td>
+      ))}
     </tr>
   )
 }
@@ -71,6 +58,8 @@ function getRoleAvatarClasses(role) {
   const classes = {
     ADMIN: 'bg-purple-100 text-purple-800',
     AUDITOR: 'bg-blue-100 text-blue-800',
+    INVESTIGATOR: 'bg-green-100 text-green-800',
+    AUTHORIZER: 'bg-amber-100 text-amber-800',
   }
 
   return classes[role] || 'bg-gray-100 text-gray-700'
@@ -80,6 +69,8 @@ function getRoleBadgeClasses(role) {
   const classes = {
     ADMIN: 'bg-purple-50 text-purple-700 border-purple-200',
     AUDITOR: 'bg-blue-50 text-blue-700 border-blue-200',
+    INVESTIGATOR: 'bg-green-50 text-green-700 border-green-200',
+    AUTHORIZER: 'bg-amber-50 text-amber-700 border-amber-200',
   }
 
   return classes[role] || 'bg-gray-50 text-gray-700 border-gray-200'
@@ -353,12 +344,14 @@ export default function AdminAccessLogPage() {
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Timestamp</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">User</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Action</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Evidence Ref</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Case Number</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Hash at time</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Timestamp</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Case #</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Evidence</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Details</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Hash</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Hash status</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Flag</th>
                 </tr>
               </thead>
@@ -406,8 +399,18 @@ export default function AdminAccessLogPage() {
                       String(row.hash_status || row.integrity_status || '').toUpperCase() === 'TAMPERED' ||
                       String(row.verification_result || row.hash_result || '').toUpperCase() === 'MISMATCH'
 
+                    const detailsText =
+                      row.details || row.reason || row.description || row.notes || '—'
+                    const hashStatusLabel =
+                      row.hash_status ||
+                      row.integrity_status ||
+                      (hasHashMismatch ? 'MISMATCH' : hashValue ? 'OK' : '—')
+
                     return (
                       <tr key={rowKey} className={`border-b border-gray-200 hover:bg-gray-50 ${isFlagged ? 'bg-red-50/50' : ''}`}>
+                        <td className="px-4 py-4 text-sm text-gray-600 whitespace-nowrap">
+                          {formatTimestamp(timestamp)}
+                        </td>
                         <td className="px-4 py-4">
                           <div className="flex items-center gap-3">
                             <div className={`h-9 w-9 rounded-full flex items-center justify-center text-xs font-semibold ${getRoleAvatarClasses(role)}`}>
@@ -426,10 +429,25 @@ export default function AdminAccessLogPage() {
                             {actionValue}
                           </span>
                         </td>
-                        <td className="px-4 py-4 text-sm font-mono text-gray-800">{evidenceRefValue}</td>
                         <td className="px-4 py-4 text-sm text-gray-700">{caseNumber}</td>
+                        <td className="px-4 py-4 text-sm font-mono text-gray-800">{evidenceRefValue}</td>
+                        <td className="px-4 py-4 text-sm text-gray-600 max-w-[200px]">
+                          <span className="line-clamp-2">{detailsText}</span>
+                        </td>
                         <td className="px-4 py-4 text-sm font-mono text-gray-700">{truncateHash(hashValue)}</td>
-                        <td className="px-4 py-4 text-sm text-gray-600">{formatTimestamp(timestamp)}</td>
+                        <td className="px-4 py-4 text-sm">
+                          <span
+                            className={`font-semibold ${
+                              String(hashStatusLabel).toUpperCase() === 'OK'
+                                ? 'text-green-700'
+                                : ['TAMPERED', 'MISMATCH', 'FAIL'].includes(String(hashStatusLabel).toUpperCase())
+                                  ? 'text-red-700'
+                                  : 'text-gray-600'
+                            }`}
+                          >
+                            {hashStatusLabel}
+                          </span>
+                        </td>
                         <td className="px-4 py-4 text-sm">
                           <button
                             type="button"
@@ -450,7 +468,7 @@ export default function AdminAccessLogPage() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
+                    <td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-500">
                       No access log entries found for the selected filters.
                     </td>
                   </tr>

@@ -1,10 +1,12 @@
+import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueries } from '@tanstack/react-query'
 import { Navigate } from 'react-router-dom'
 import Layout from '../components/layout/Layout'
 import Spinner from '../components/ui/Spinner'
 import Badge from '../components/ui/Badge'
 import { casesAPI } from '../api/cases'
+import { evidenceAPI } from '../api/evidence'
 import { useAuthStore } from '../store/authStore'
 import { isInvestigator } from '../utils/rbac'
 import {
@@ -14,6 +16,7 @@ import {
 export default function InvestigatorPage() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
+  const isInv = isInvestigator(user)
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['my-cases', user?.id],
@@ -22,29 +25,55 @@ export default function InvestigatorPage() {
       return result.cases || result.data || (Array.isArray(result) ? result : [])
     },
     refetchOnMount: true,
-    enabled: isInvestigator(user),
+    enabled: isInv && !!user?.id,
   })
 
-  if (!isInvestigator(user)) return <Navigate to="/home" replace />
+  const allCases = isInv ? (data || []) : []
 
-  const allCases = data || []
+  const myCases = useMemo(() => {
+    if (!isInv || !user?.id) return []
+    return allCases.filter((c) => {
+      const createdBy = c.created_by || c.createdBy || c.creator_id
+      const assignedTo = c.assigned_to || c.assignedTo || c.assigned_user_id || c.investigator_id
+      return (
+        String(createdBy) === String(user.id) || String(assignedTo) === String(user.id)
+      )
+    })
+  }, [allCases, isInv, user?.id])
 
-  // Client-side safety filter: only show cases belonging to the logged-in investigator
-  const myCases = allCases.filter((c) => {
-    const createdBy  = c.created_by  || c.createdBy  || c.creator_id
-    const assignedTo = c.assigned_to || c.assignedTo || c.assigned_user_id || c.investigator_id
-    const userId     = user?.id
+  const previewCases = useMemo(() => myCases.slice(0, 25), [myCases])
 
-    if (!userId) return true // no user id to compare, show all (backend should filter)
-    return (
-      String(createdBy) === String(userId) ||
-      String(assignedTo) === String(userId)
-    )
+  const evidenceCountQueries = useQueries({
+    queries: previewCases.map((c) => ({
+      queryKey: ['evidence-count-inv', c.id],
+      queryFn: async () => {
+        const list = await evidenceAPI.getEvidenceByCaseId(c.id)
+        return Array.isArray(list) ? list.length : 0
+      },
+      enabled: isInv && !!c?.id && previewCases.length > 0,
+      staleTime: 120_000,
+    })),
   })
 
-  const pending = myCases.filter((c) => ['PENDING_APPROVAL','PENDING','AWAITING_APPROVAL'].includes((c.status||'').toUpperCase()))
-  const open    = myCases.filter((c) => ['OPEN','ACTIVE','UNDER_INVESTIGATION'].includes((c.status||'').toUpperCase()))
-  const closed  = myCases.filter((c) => ['CLOSED','RESOLVED','REJECTED'].includes((c.status||'').toUpperCase()))
+  const evidenceCountAt = (idx) => {
+    const q = evidenceCountQueries[idx]
+    if (!q) return '—'
+    if (q.isPending) return '…'
+    if (q.isError) return '—'
+    return q.data
+  }
+
+  if (!isInv) return <Navigate to="/home" replace />
+
+  const pending = myCases.filter((c) =>
+    ['PENDING_APPROVAL', 'PENDING', 'AWAITING_APPROVAL'].includes((c.status || '').toUpperCase())
+  )
+  const open = myCases.filter((c) =>
+    ['OPEN', 'ACTIVE', 'UNDER_INVESTIGATION'].includes((c.status || '').toUpperCase())
+  )
+  const closed = myCases.filter((c) =>
+    ['CLOSED', 'RESOLVED', 'REJECTED'].includes((c.status || '').toUpperCase())
+  )
 
   return (
     <Layout>
@@ -65,7 +94,6 @@ export default function InvestigatorPage() {
           </div>
         )}
 
-        {/* Stat cards */}
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
           <div className="bg-white rounded-xl border border-amber-100 p-5">
             <div className="flex items-center gap-2 mb-1">
@@ -97,7 +125,6 @@ export default function InvestigatorPage() {
           </div>
         </div>
 
-        {/* Quick actions */}
         <div className="flex gap-3 mb-6 flex-wrap">
           <button
             onClick={() => navigate('/cases/new')}
@@ -113,40 +140,91 @@ export default function InvestigatorPage() {
           </button>
         </div>
 
-        {/* My recent cases */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100">
-            <h2 className="text-sm font-bold text-gray-700">My Recent Cases</h2>
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-2">
+            <h2 className="text-sm font-bold text-gray-700">My active cases</h2>
+            <span className="text-xs text-gray-400">Up to 25 rows · evidence counts load live</span>
           </div>
 
           {isLoading ? (
-            <div className="flex justify-center py-10"><Spinner /></div>
+            <div className="flex justify-center py-10">
+              <Spinner />
+            </div>
           ) : myCases.length === 0 ? (
             <div className="py-12 text-center">
               <FileText size={28} className="text-gray-300 mx-auto mb-2" />
               <p className="text-sm text-gray-400">You have no cases yet — create your first case</p>
-              <button onClick={() => navigate('/cases/new')}
-                className="mt-3 text-xs text-accent hover:underline">
+              <button
+                onClick={() => navigate('/cases/new')}
+                className="mt-3 text-xs text-accent hover:underline"
+              >
                 Create case →
               </button>
             </div>
           ) : (
-            <div className="divide-y divide-gray-100">
-              {myCases.slice(0, 10).map((c) => (
-                <div key={c.id}
-                  onClick={() => navigate(`/cases/${c.id}`)}
-                  className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 cursor-pointer transition-colors"
-                >
-                  <div className="h-8 w-8 rounded-lg bg-accent/10 flex items-center justify-center flex-shrink-0">
-                    <FolderOpen size={15} className="text-accent" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{c.title}</p>
-                    <p className="text-xs text-gray-400 font-mono">{c.case_number || c.id?.substring(0,10)}</p>
-                  </div>
-                  <Badge status={c.status} />
-                </div>
-              ))}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Case #
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Title
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider hidden md:table-cell">
+                      Fraud type
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider hidden lg:table-cell">
+                      Created
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Evidence
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {previewCases.map((c, idx) => (
+                    <tr key={c.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 font-mono text-gray-700 whitespace-nowrap">
+                        {c.case_number || c.id?.substring(0, 10)}
+                      </td>
+                      <td className="px-4 py-3 font-medium text-gray-900 max-w-[220px] truncate">{c.title}</td>
+                      <td className="px-4 py-3 text-gray-600 hidden md:table-cell">
+                        {c.fraud_type ? String(c.fraud_type).replace(/_/g, ' ') : '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge status={c.status} />
+                      </td>
+                      <td className="px-4 py-3 text-gray-500 hidden lg:table-cell whitespace-nowrap">
+                        {c.created_at
+                          ? new Date(c.created_at).toLocaleDateString('en-GB', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                            })
+                          : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-800">{evidenceCountAt(idx)}</td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/cases/${c.id}`)}
+                          className="text-accent hover:text-accent/80 font-semibold"
+                        >
+                          Open
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, formatDistanceToNow } from 'date-fns'
@@ -16,6 +16,15 @@ import {
   formatEvidenceTypeLabel,
 } from '../utils/evidenceDisplay'
 import {
+  extractCustodyRecordsFromEvidence,
+  getCustodyActionLabel,
+  formatCustodyTimestamp,
+  getCustodyActorSummary,
+  getCustodyRecordedBy,
+  getCustodyTimestampMs,
+  sortCustodyRecordsChronological,
+} from '../utils/custodyDisplay'
+import {
   ArrowLeft,
   Plus,
   AlertCircle,
@@ -30,26 +39,36 @@ import {
   X,
 } from 'lucide-react'
 
-// Custody Status Colors
+// Custody action colors (API uses `action`; legacy rows may use `status`)
 const custodyStatusColors = {
-  COLLECTED: 'bg-gray-100 text-gray-800',
+  COLLECTED: 'bg-emerald-100 text-emerald-800',
+  TRANSFERRED: 'bg-sky-100 text-sky-800',
+  RECEIVED: 'bg-amber-100 text-amber-800',
+  ANALYZED: 'bg-indigo-100 text-indigo-800',
+  SECURED: 'bg-teal-100 text-teal-800',
+  SUBMITTED_TO_COURT: 'bg-purple-100 text-purple-800',
   IN_TRANSIT: 'bg-blue-100 text-blue-800',
   IN_ANALYSIS: 'bg-amber-100 text-amber-800',
-  SECURED: 'bg-green-100 text-green-800',
   SUBMITTED: 'bg-purple-100 text-purple-800',
 }
 
 const custodyStatusIcons = {
   COLLECTED: '📋',
+  TRANSFERRED: '🚚',
+  RECEIVED: '📥',
+  ANALYZED: '🔬',
+  SECURED: '🔒',
+  SUBMITTED_TO_COURT: '📤',
   IN_TRANSIT: '🚚',
   IN_ANALYSIS: '🔬',
-  SECURED: '🔒',
   SUBMITTED: '📤',
 }
 
 // Custody Timeline Drawer
 function CustodyDrawer({ isOpen, onClose, evidence, custody }) {
   if (!isOpen) return null
+
+  const sorted = sortCustodyRecordsChronological(custody)
 
   return (
     <>
@@ -77,54 +96,77 @@ function CustodyDrawer({ isOpen, onClose, evidence, custody }) {
 
         {/* Timeline */}
         <div className="p-6">
-          {custody && custody.length > 0 ? (
+          {sorted && sorted.length > 0 ? (
             <div className="space-y-6">
-              {custody.map((record, idx) => (
-                <div key={record.id || idx} className="flex gap-4">
-                  {/* Timeline dot */}
-                  <div className="flex flex-col items-center">
-                    <div className="w-10 h-10 rounded-full bg-primary bg-opacity-20 flex items-center justify-center text-xl">
-                      {custodyStatusIcons[record.status] || '📦'}
+              {sorted.map((record, idx) => {
+                const actionKey = getCustodyActionLabel(record)
+                const statusKey =
+                  (record.status && String(record.status).toUpperCase()) || actionKey
+                const badgeKey =
+                  custodyStatusColors[actionKey]
+                    ? actionKey
+                    : custodyStatusColors[statusKey]
+                      ? statusKey
+                      : actionKey
+                const ts = getCustodyTimestampMs(record)
+                const recorded = getCustodyRecordedBy(record)
+                const summary = getCustodyActorSummary(record)
+                const notes = record.notes || record.description
+
+                return (
+                  <div key={record.id || idx} className="flex gap-4">
+                    {/* Timeline dot */}
+                    <div className="flex flex-col items-center">
+                      <div className="w-10 h-10 rounded-full bg-primary bg-opacity-20 flex items-center justify-center text-xl">
+                        {custodyStatusIcons[actionKey] || custodyStatusIcons[statusKey] || '📦'}
+                      </div>
+                      {idx < sorted.length - 1 && (
+                        <div className="w-0.5 h-12 bg-gray-300 mt-2" />
+                      )}
                     </div>
-                    {idx < custody.length - 1 && (
-                      <div className="w-0.5 h-12 bg-gray-300 mt-2" />
-                    )}
-                  </div>
 
-                  {/* Content */}
-                  <div className="flex-1 pb-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span
-                        className={`px-2 py-1 rounded text-xs font-semibold ${
-                          custodyStatusColors[record.status] || 'bg-gray-100'
-                        }`}
-                      >
-                        {record.status}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        {record.timestamp ? format(new Date(record.timestamp), 'MMM dd, yyyy HH:mm') : 'N/A'}
-                      </span>
+                    {/* Content */}
+                    <div className="flex-1 pb-4">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <span
+                          className={`px-2 py-1 rounded text-xs font-semibold ${
+                            custodyStatusColors[badgeKey] || 'bg-gray-100 text-gray-800'
+                          }`}
+                        >
+                          {actionKey}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {ts
+                            ? format(new Date(ts), 'MMM dd, yyyy HH:mm')
+                            : formatCustodyTimestamp(record)}
+                        </span>
+                      </div>
+
+                      <p className="text-sm font-medium text-gray-900 mb-1">
+                        {summary}
+                      </p>
+                      {recorded !== '—' && recorded !== 'Unknown' && summary !== recorded && (
+                        <p className="text-xs text-gray-600 mb-1">
+                          Recorded by: {recorded}
+                        </p>
+                      )}
+
+                      {record.location && (
+                        <p className="text-xs text-gray-600 flex items-center gap-1 mb-2">
+                          <MapPin size={14} />
+                          {record.location}
+                        </p>
+                      )}
+
+                      {notes && (
+                        <p className="text-sm text-gray-700 bg-gray-50 p-2 rounded mt-2">
+                          {notes}
+                        </p>
+                      )}
                     </div>
-
-                    <p className="text-sm font-medium text-gray-900 mb-1">
-                      {record.officer || 'System'}
-                    </p>
-
-                    {record.location && (
-                      <p className="text-xs text-gray-600 flex items-center gap-1 mb-2">
-                        <MapPin size={14} />
-                        {record.location}
-                      </p>
-                    )}
-
-                    {record.description && (
-                      <p className="text-sm text-gray-700 bg-gray-50 p-2 rounded mt-2">
-                        {record.description}
-                      </p>
-                    )}
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           ) : (
             <div className="text-center text-gray-500 py-8">
@@ -276,17 +318,35 @@ export default function CaseDetailPage() {
     refetchOnMount: true,
   })
 
+  const evidenceIdsKey =
+    evidenceItems?.length != null
+      ? [...evidenceItems.map((e) => e.id)].sort().join(',')
+      : ''
+
   const { data: custodyRecords, isLoading: custodyLoading } = useQuery({
-    queryKey: ['custody', caseId],
+    queryKey: ['custody', caseId, evidenceIdsKey],
     queryFn: async () => {
-      // Fetch custody records for all evidence in case
-      if (!evidenceItems) return []
-      const records = await Promise.all(
-        evidenceItems.map(e => custodyAPI.getCustodyByEvidenceId(e.id).catch(() => []))
+      if (!evidenceItems || evidenceItems.length === 0) return []
+      const rows = await Promise.all(
+        evidenceItems.map(async (e) => {
+          const fromApi = await custodyAPI.getCustodyByEvidenceId(e.id).catch(() => [])
+          const arr = Array.isArray(fromApi) ? fromApi : []
+          const merged =
+            arr.length > 0 ? arr : extractCustodyRecordsFromEvidence(e)
+          return merged.map((r) => ({ ...r, evidenceId: e.id }))
+        })
       )
-      return records.flat()
+      return rows.flat()
     },
+    enabled: Boolean(caseId && !evidenceLoading),
   })
+
+  const drawerCustody = useMemo(() => {
+    if (!selectedEvidence) return []
+    const agg = custodyRecords?.filter((r) => r.evidenceId === selectedEvidence.id) || []
+    if (agg.length) return agg
+    return extractCustodyRecordsFromEvidence(selectedEvidence)
+  }, [selectedEvidence, custodyRecords])
 
   const updateStatusMutation = useMutation({
     mutationFn: (data) => casesAPI.updateCase(caseId, data),
@@ -303,10 +363,6 @@ export default function CaseDetailPage() {
 
   const handleStatusChange = (data) => {
     updateStatusMutation.mutate(data)
-  }
-
-  const getCustodyForEvidence = (evidenceId) => {
-    return custodyRecords?.filter(r => r.evidenceId === evidenceId) || []
   }
 
   if (caseLoading) {
@@ -519,28 +575,35 @@ export default function CaseDetailPage() {
                 <div className="p-6 max-h-96 overflow-y-auto">
                   {custodyRecords && custodyRecords.length > 0 ? (
                     <div className="space-y-4">
-                      {custodyRecords
-                        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+                      {[...custodyRecords]
+                        .sort(
+                          (a, b) => getCustodyTimestampMs(b) - getCustodyTimestampMs(a)
+                        )
                         .slice(0, 10)
-                        .map((record, idx) => (
-                          <div key={record.id || idx} className="flex gap-3">
-                            <div className="flex flex-col items-center">
-                              <div className="w-2 h-2 rounded-full bg-accent mt-2" />
-                              {idx < 9 && <div className="w-0.5 h-6 bg-gray-300 mt-1" />}
+                        .map((record, idx) => {
+                          const ts = getCustodyTimestampMs(record)
+                          return (
+                            <div key={record.id || idx} className="flex gap-3">
+                              <div className="flex flex-col items-center">
+                                <div className="w-2 h-2 rounded-full bg-accent mt-2" />
+                                {idx < 9 && <div className="w-0.5 h-6 bg-gray-300 mt-1" />}
+                              </div>
+                              <div className="flex-1 pb-3">
+                                <p className="text-xs font-semibold text-accent uppercase">
+                                  {getCustodyActionLabel(record)}
+                                </p>
+                                <p className="text-xs text-gray-600 mt-1">
+                                  {getCustodyActorSummary(record)}
+                                </p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {ts
+                                    ? formatDistanceToNow(new Date(ts), { addSuffix: true })
+                                    : '—'}
+                                </p>
+                              </div>
                             </div>
-                            <div className="flex-1 pb-3">
-                              <p className="text-xs font-semibold text-accent uppercase">
-                                {record.action || 'Updated'}
-                              </p>
-                              <p className="text-xs text-gray-600 mt-1">
-                                {record.officer || 'System'}
-                              </p>
-                              <p className="text-xs text-gray-500 mt-1">
-                                {formatDistanceToNow(new Date(record.timestamp), { addSuffix: true })}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
+                          )
+                        })}
                     </div>
                   ) : (
                     <p className="text-sm text-gray-500 text-center py-4">
@@ -590,7 +653,7 @@ export default function CaseDetailPage() {
         isOpen={custodyOpen}
         onClose={() => setCustodyOpen(false)}
         evidence={selectedEvidence}
-        custody={selectedEvidence ? getCustodyForEvidence(selectedEvidence.id) : []}
+        custody={drawerCustody}
       />
 
       {/* Status Change Modal */}

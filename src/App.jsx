@@ -22,6 +22,7 @@ import AuditorPage        from './pages/AuditorPage'
 import CreateUserPage     from './pages/CreateUserPage'
 import AuthorizerPage     from './pages/AuthorizerPage'
 import InvestigatorPage   from './pages/InvestigatorPage'
+import AuditorEvidenceIntegrityPage from './pages/AuditorEvidenceIntegrityPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -122,6 +123,14 @@ function AppContent() {
         element={
           <ProtectedRoute allowedRoles={['AUDITOR']}>
             <AuditorPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/audit/evidence"
+        element={
+          <ProtectedRoute allowedRoles={['AUDITOR']}>
+            <AuditorEvidenceIntegrityPage />
           </ProtectedRoute>
         }
       />
